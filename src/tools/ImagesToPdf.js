@@ -9,12 +9,20 @@ function renderList() {
   img2pdfFiles.forEach((f, i) => {
     const item = document.createElement('div');
     item.className = 'file-item';
-    item.innerHTML = `
-      <span class="file-icon">🖼️</span>
-      <span class="file-name">${f.name}</span>
-      <span class="file-size">${formatSize(f.size)}</span>
-      <button class="file-remove" data-remove="${i}">×</button>
-    `;
+    const icon = document.createElement('span');
+    icon.className = 'file-icon';
+    icon.textContent = '🖼️';
+    const name = document.createElement('span');
+    name.className = 'file-name';
+    name.textContent = f.name;
+    const size = document.createElement('span');
+    size.className = 'file-size';
+    size.textContent = formatSize(f.size);
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'file-remove';
+    removeBtn.dataset.remove = i;
+    removeBtn.textContent = '×';
+    item.append(icon, name, size, removeBtn);
     list.appendChild(item);
   });
   list.querySelectorAll('[data-remove]').forEach(btn => {

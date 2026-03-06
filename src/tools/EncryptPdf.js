@@ -12,12 +12,16 @@ async function doEncrypt() {
   try {
     const bytes = await encryptFile.arrayBuffer();
     const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
-    const pdfBytes = await pdfDoc.save({ userPassword: password, ownerPassword: password });
+    const ownerPassword = password + '_owner_' + Date.now();
+    const pdfBytes = await pdfDoc.save({ userPassword: password, ownerPassword });
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     document.getElementById('encryptDownload').onclick = () => downloadBlob(blob, 'encrypted_' + encryptFile.name);
     document.getElementById('encryptResult').classList.add('active');
   } catch (err) {
     showError('Error encrypting: ' + err.message);
+  } finally {
+    document.getElementById('encryptPassword').value = '';
+    document.getElementById('encryptPasswordConfirm').value = '';
   }
 }
 

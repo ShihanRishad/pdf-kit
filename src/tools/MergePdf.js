@@ -11,12 +11,20 @@ function renderList() {
     item.className = 'file-item';
     item.draggable = true;
     item.dataset.index = i;
-    item.innerHTML = `
-      <span class="file-icon">📄</span>
-      <span class="file-name">${f.name}</span>
-      <span class="file-size">${formatSize(f.size)}</span>
-      <button class="file-remove" data-remove="${i}">×</button>
-    `;
+    const icon = document.createElement('span');
+    icon.className = 'file-icon';
+    icon.textContent = '📄';
+    const name = document.createElement('span');
+    name.className = 'file-name';
+    name.textContent = f.name;
+    const size = document.createElement('span');
+    size.className = 'file-size';
+    size.textContent = formatSize(f.size);
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'file-remove';
+    removeBtn.dataset.remove = i;
+    removeBtn.textContent = '×';
+    item.append(icon, name, size, removeBtn);
     item.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', i); item.classList.add('dragging'); });
     item.addEventListener('dragend', () => item.classList.remove('dragging'));
     item.addEventListener('dragover', e => e.preventDefault());

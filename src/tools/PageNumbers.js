@@ -12,7 +12,7 @@ async function doPageNums() {
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const pages = pdfDoc.getPages();
     const pos = document.getElementById('pagenumsPosition').value;
-    const startNum = parseInt(document.getElementById('pagenumsStart').value) || 1;
+    const startNum = Math.max(1, Math.min(99999, parseInt(document.getElementById('pagenumsStart').value) || 1));
     const format = document.getElementById('pagenumsFormat').value;
 
     pages.forEach((page, i) => {
