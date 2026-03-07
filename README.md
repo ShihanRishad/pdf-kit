@@ -3,7 +3,7 @@
 ![pdfkit](public/og-image.png)
 
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/viveknaskar?label=Sponsor&logo=GitHub)](https://github.com/sponsors/viveknaskar)
-![Views](https://komarev.com/ghpvc/?username=viveknaskar&repo=pdf-kit&color=orange&label=Views&style=flat)
+![Views](https://visitor-badge.laobi.icu/badge?page_id=viveknaskar.pdf-kit)
 
 Live site: https://viveknaskar.github.io/pdf-kit/
 
