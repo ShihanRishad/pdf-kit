@@ -113,6 +113,13 @@
   inset: 0;
   opacity: 0;
   cursor: pointer;
+  z-index: 1;
+}
+
+.drop-zone-icon,
+.drop-zone h3,
+.drop-zone p {
+  pointer-events: none;
 }
 
 /* ===== FILE LIST ===== */
