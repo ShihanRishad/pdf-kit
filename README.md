@@ -127,6 +127,23 @@ npm run preview
 
 ---
 
+## Testing
+
+```bash
+# Unit tests (Utils.js)
+npm test
+
+# Unit tests in watch mode
+npm run test:watch
+
+# E2E tests (requires no other process on port 5173)
+npm run test:e2e
+```
+
+Unit tests use [Vitest](https://vitest.dev/) with happy-dom. E2E tests use Vitest + [Puppeteer](https://pptr.dev/) and spin up a Vite dev server automatically.
+
+---
+
 ## Project Structure
 
 ```
@@ -136,8 +153,6 @@ pdf-kit/
 │   ├── og-image.png
 │   └── robots.txt
 ├── src/
-│   ├── assets/
-│   │   └── icons/
 │   ├── styles/
 │   │   ├── base.css          # CSS reset, variables, typography
 │   │   ├── layout.css        # Header, footer, hero, tool grid
@@ -161,9 +176,17 @@ pdf-kit/
 │   │   ├── EncryptPdf.js
 │   │   └── ExtractText.js
 │   └── main.js               # Entry point — imports and initializes all tools
+├── tests/
+│   ├── unit/
+│   │   └── utils.test.js     # Unit tests for Utils.js
+│   └── e2e/
+│       ├── setup.js          # Vite dev server setup/teardown
+│       └── app.test.js       # Puppeteer E2E tests
 ├── index.html
 ├── package.json
 ├── vite.config.js
+├── vitest.config.js          # Unit test config
+├── vitest.e2e.config.js      # E2E test config
 └── .gitignore
 ```
 
