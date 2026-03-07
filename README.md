@@ -1,5 +1,7 @@
 # pdfkit
 
+![pdfkit](public/og-image.png)
+
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/viveknaskar?label=Sponsor&logo=GitHub)](https://github.com/sponsors/viveknaskar)
 
 Free, open-source PDF tools that run entirely in your browser. No watermarks, no sign-up, no server uploads — your files never leave your device.
