@@ -3,6 +3,7 @@
 ![pdfkit](public/og-image.png)
 
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/viveknaskar?label=Sponsor&logo=GitHub)](https://github.com/sponsors/viveknaskar)
+![Views](https://komarev.com/ghpvc/?username=viveknaskar&repo=pdf-kit&color=orange&label=Views&style=flat)
 
 Free, open-source PDF tools that run entirely in your browser. No watermarks, no sign-up, no server uploads — your files never leave your device.
 
