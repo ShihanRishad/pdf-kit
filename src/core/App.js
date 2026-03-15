@@ -142,10 +142,40 @@ export function renderApp() {
       </div>
     </div>
 
-    <!-- TOOL VIEWS -->
-    ${toolViewsHTML()}
+    <!-- Editor (with a sidebar, primarily) -->
+    <div id="appView" style="display: none;">
+      <aside class="app-sidebar">
+        <div class="sidebar-header">
+           <div class="logo" id="sidebarLogoBtn" style="cursor:pointer">pdf<span>kit</span></div>
+        </div>
+        <nav class="sidebar-nav">
+           <div class="nav-section">Essentials</div>
+           <a href="#app/merge" class="sidebar-link" data-tool="merge"><span class="icon">📎</span> Merge PDFs</a>
+           <a href="#app/split" class="sidebar-link" data-tool="split"><span class="icon">✂️</span> Split PDF</a>
+           <a href="#app/compress" class="sidebar-link" data-tool="compress"><span class="icon">📦</span> Compress PDF</a>
+           
+           <div class="nav-section">Convert</div>
+           <a href="#app/pdf2jpg" class="sidebar-link" data-tool="pdf2jpg"><span class="icon">🖼️</span> PDF to JPG</a>
+           <a href="#app/img2pdf" class="sidebar-link" data-tool="img2pdf"><span class="icon">📷</span> Images to PDF</a>
+           <a href="#app/html2pdf" class="sidebar-link" data-tool="html2pdf"><span class="icon">🌐</span> HTML to PDF</a>
+           
+           <div class="nav-section">Edit & Organize</div>
+           <a href="#app/organize" class="sidebar-link" data-tool="organize"><span class="icon">🔀</span> Organize Pages</a>
+           <a href="#app/addtext" class="sidebar-link" data-tool="addtext"><span class="icon">✏️</span> Add Text/Sign</a>
+           <a href="#app/pagenums" class="sidebar-link" data-tool="pagenums"><span class="icon">🔢</span> Page Numbers</a>
+           <a href="#app/watermark" class="sidebar-link" data-tool="watermark"><span class="icon">💧</span> Add Watermark</a>
+           <a href="#app/encrypt" class="sidebar-link" data-tool="encrypt"><span class="icon">🔒</span> Encrypt PDF</a>
+           <a href="#app/extract" class="sidebar-link" data-tool="extract"><span class="icon">📝</span> Extract Text</a>
+        </nav>
+      </aside>
+      <main class="app-main">
+        <div id="toolViewsContainer">
+          ${toolViewsHTML()}
+        </div>
+      </main>
+    </div>
 
-    <footer>
+    <footer id="homeFooter">
       <p>pdfkit — All processing happens in your browser. Your files never leave your device.</p>
     </footer>
   `;
@@ -535,26 +565,52 @@ function toolViewsHTML() {
 }
 
 /**
- * Show the home view, hide all tool views.
+ * Show the home view, hide app view.
  */
 export function showHome() {
+  window.location.hash = '';
   document.getElementById('homeView').style.display = 'block';
+  document.querySelector('header').style.display = 'flex';
+  document.getElementById('homeFooter').style.display = 'block';
+  
+  document.getElementById('appView').style.display = 'none';
   document.querySelectorAll('.tool-view').forEach(v => v.classList.remove('active'));
   window.scrollTo(0, 0);
 }
 
 /**
- * Open a specific tool view by name.
+ * Open a specific tool view by name in the app workspace.
  */
 export function openTool(tool) {
+  // Hide home elements
   document.getElementById('homeView').style.display = 'none';
+  document.querySelector('header').style.display = 'none';
+  document.getElementById('homeFooter').style.display = 'none';
+  
+  // Show app view
+  const appView = document.getElementById('appView');
+  appView.style.display = 'flex'; // Will be styled as display:flex in CSS
+  
+  // Hide all tool views
   document.querySelectorAll('.tool-view').forEach(v => v.classList.remove('active'));
+  
+  // Update active state in sidebar
+  document.querySelectorAll('.sidebar-link').forEach(link => {
+    link.classList.remove('active');
+    if (link.dataset.tool === tool) {
+      link.classList.add('active');
+    }
+  });
+
   const view = document.getElementById('tool-' + tool);
   if (view) {
     view.classList.add('active');
     view.classList.add('animate-in');
   }
-  window.scrollTo(0, 0);
+  
+  // Scroll main container to top instead of full window
+  const appMain = document.querySelector('.app-main');
+  if (appMain) appMain.scrollTo(0, 0);
 }
 
 /**
@@ -563,26 +619,48 @@ export function openTool(tool) {
 export function initNav() {
   // Logo → home
   document.getElementById('logoBtn').addEventListener('click', showHome);
+  document.getElementById('sidebarLogoBtn').addEventListener('click', showHome);
 
   // Nav buttons → scroll to sections
   document.querySelectorAll('header nav button').forEach(btn => {
     btn.addEventListener('click', function () {
-      showHome();
+      if (window.location.hash.startsWith('#app/')) {
+        showHome();
+      }
       const section = this.dataset.section;
       document.querySelectorAll('header nav button').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
       const el = document.getElementById('section-' + section);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      }
     });
   });
 
-  // Tool cards → open tool
+  // Tool cards → open tool via hash
   document.querySelectorAll('.tool-card[data-tool]').forEach(card => {
-    card.addEventListener('click', () => openTool(card.dataset.tool));
+    card.addEventListener('click', () => {
+      window.location.hash = '#app/' + card.dataset.tool;
+    });
   });
 
   // Back buttons
   document.querySelectorAll('[data-back]').forEach(btn => {
     btn.addEventListener('click', showHome);
   });
+
+  // Hash Router
+  function handleHashChange() {
+    const hash = window.location.hash;
+    if (hash.startsWith('#app/')) {
+      const tool = hash.replace('#app/', '');
+      openTool(tool);
+    } else {
+      showHome();
+    }
+  }
+
+  window.addEventListener('hashchange', handleHashChange);
+  // Initial check
+  handleHashChange();
 }
