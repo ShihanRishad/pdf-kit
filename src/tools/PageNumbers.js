@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
-import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { EditorState, EditorEvents, getFileBytes } from '../core/EditorState.js';
 
 async function doPageNums() {
   if (EditorState.activeTool !== 'pagenums' || EditorState.files.length === 0) return;
@@ -10,7 +10,7 @@ async function doPageNums() {
   document.getElementById('pagenumsBtn').textContent = 'Processing...';
 
   try {
-    const bytes = await pagenumsFile.arrayBuffer();
+    const bytes = await getFileBytes(pagenumsFile);
     const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const pages = pdfDoc.getPages();

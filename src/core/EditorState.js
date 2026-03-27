@@ -1,10 +1,9 @@
-import { PDFDocument } from 'pdf-lib';
-
 export const EditorState = {
   files: [],       // Array of uploaded File objects (PDFs)
   pdfDocs: [],     // Array of loaded pdf-lib PDFDocument instances
   activeTool: null, // e.g., 'merge', 'split'
   globalPdfBytes: null, // Optional cache of bytes if merged/manipulated globally
+  fileByteCache: new WeakMap(), // File -> Promise<ArrayBuffer>
 };
 
 export const EditorEvents = {
@@ -35,6 +34,18 @@ export function removeFile(index) {
 export function clearFiles() {
   EditorState.files = [];
   EditorEvents.emit('filesChanged', EditorState.files);
+}
+
+export function getFileBytes(file) {
+  if (!file) return Promise.resolve(null);
+
+  let pending = EditorState.fileByteCache.get(file);
+  if (!pending) {
+    pending = file.arrayBuffer();
+    EditorState.fileByteCache.set(file, pending);
+  }
+
+  return pending;
 }
 
 export function setActiveTool(tool) {

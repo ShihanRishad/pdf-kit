@@ -1,7 +1,7 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import * as pdfjsLib from 'pdfjs-dist';
 import { downloadBlob, setProgress, hideProgress, hexToRgb, showError, formatSize } from '../core/Utils.js';
-import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { EditorState, EditorEvents, getFileBytes } from '../core/EditorState.js';
+import { getPdfJs } from '../core/PdfJs.js';
 
 let addtextPdfBytes = null;
 let addtextAnnotations = {};
@@ -10,6 +10,23 @@ let addtextCurrentPage = 0;
 let isDrawing = false;
 let currentDrawPoints = [];
 let currentFile = null;
+let addtextPdfProxy = null;
+let addtextLoadingTask = null;
+let addtextRenderToken = 0;
+
+async function disposePdfProxy() {
+  const prevTask = addtextLoadingTask;
+  addtextLoadingTask = null;
+  addtextPdfProxy = null;
+
+  if (prevTask && typeof prevTask.destroy === 'function') {
+    try {
+      await prevTask.destroy();
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+}
 
 function drawAnnotation(ctx, ann, scale) {
   if (ann.type === 'text') {
@@ -29,9 +46,17 @@ function drawAnnotation(ctx, ann, scale) {
 }
 
 async function renderPage() {
+  if (!addtextPdfProxy) return;
+  addtextRenderToken += 1;
+  const token = addtextRenderToken;
+
   addtextCurrentPage = parseInt(document.getElementById('addtextPage').value);
-  const pdfDoc = await pdfjsLib.getDocument({ data: addtextPdfBytes.slice(0) }).promise;
-  const page = await pdfDoc.getPage(addtextCurrentPage + 1);
+  const page = await addtextPdfProxy.getPage(addtextCurrentPage + 1);
+  if (token !== addtextRenderToken) {
+    page.cleanup();
+    return;
+  }
+
   const scale = 1.5;
   const vp = page.getViewport({ scale });
   
@@ -46,6 +71,7 @@ async function renderPage() {
   canvas.height = vp.height;
   const ctx = canvas.getContext('2d');
   await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  page.cleanup();
 
   const anns = addtextAnnotations[addtextCurrentPage] || [];
   anns.forEach(a => drawAnnotation(ctx, a, scale));
@@ -124,14 +150,19 @@ async function renderCanvas() {
   if (currentFile === file && document.getElementById('addtextCanvas')) return;
   currentFile = file;
 
-  addtextPdfBytes = await file.arrayBuffer();
+  await disposePdfProxy();
+
+  addtextPdfBytes = await getFileBytes(file);
   addtextAnnotations = {};
   addtextCurrentPage = 0;
 
-  const pdfDoc = await pdfjsLib.getDocument({ data: addtextPdfBytes.slice(0) }).promise;
+  const pdfjsLib = await getPdfJs();
+  addtextLoadingTask = pdfjsLib.getDocument({ data: addtextPdfBytes.slice(0) });
+  addtextPdfProxy = await addtextLoadingTask.promise;
+
   const select = document.getElementById('addtextPage');
   select.innerHTML = '';
-  for (let i = 1; i <= pdfDoc.numPages; i++) {
+  for (let i = 1; i <= addtextPdfProxy.numPages; i++) {
     const opt = document.createElement('option');
     opt.value = i - 1;
     opt.textContent = 'Page ' + i;
@@ -225,6 +256,7 @@ export function init() {
           document.getElementById('addtextBtn').disabled = true;
           document.getElementById('editorCenterCanvas').innerHTML = '';
           currentFile = null;
+          disposePdfProxy();
        } else {
           renderCanvas();
        }
@@ -233,5 +265,6 @@ export function init() {
 
   EditorEvents.on('toolChanged', (tool) => {
     if (tool === 'addtext') renderCanvas();
+    if (tool !== 'addtext') disposePdfProxy();
   });
 }

@@ -467,6 +467,11 @@ export function showHome() {
 export function openTool(tool) {
   // Popups
   if (tool === 'img2pdf' || tool === 'html2pdf') {
+    const ensureLoaded = window.__ensureToolLoaded;
+    if (typeof ensureLoaded === 'function') {
+      ensureLoaded(tool).catch(() => {});
+    }
+
     document.getElementById('convertModalOverlay').style.display = 'flex';
     document.querySelectorAll('.popup-view').forEach(v => v.style.display = 'none');
     const popup = document.getElementById('popup-' + tool);
@@ -507,11 +512,19 @@ export function openTool(tool) {
     document.getElementById('toolOptionsTitle').textContent = activeBtn ? activeBtn.getAttribute('title') : 'Options';
   }
   
-  // Update state (import EditorState dynamically or emit an event for it)
-  // Tool modules will listen to changes to know what interface to render in the center/left
-  import('./EditorState.js').then(module => {
-     module.setActiveTool(tool);
-  });
+  // Ensure tool code is loaded before emitting tool change so first render is immediate.
+  const ensureLoaded = window.__ensureToolLoaded;
+  const ready = typeof ensureLoaded === 'function' ? ensureLoaded(tool) : Promise.resolve();
+
+  ready
+    .catch(() => {
+      // If loading fails we still switch tool so UI remains navigable.
+    })
+    .finally(() => {
+      import('./EditorState.js').then(module => {
+         module.setActiveTool(tool);
+      });
+    });
 }
 
 /**

@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
-import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { EditorState, EditorEvents, getFileBytes } from '../core/EditorState.js';
 
 async function doWatermark() {
   if (EditorState.activeTool !== 'watermark' || EditorState.files.length === 0) return;
@@ -10,7 +10,7 @@ async function doWatermark() {
   document.getElementById('watermarkBtn').textContent = 'Processing...';
 
   try {
-    const bytes = await watermarkFile.arrayBuffer();
+    const bytes = await getFileBytes(watermarkFile);
     const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
     const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const pages = pdfDoc.getPages();

@@ -1,37 +1,50 @@
 import { PDFDocument, degrees } from 'pdf-lib';
-import * as pdfjsLib from 'pdfjs-dist';
 import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
-import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { EditorState, EditorEvents, getFileBytes } from '../core/EditorState.js';
+import { getPdfJs } from '../core/PdfJs.js';
 
 let organizePdfBytes = null;
 let organizePages = [];
 let organizeSelected = new Set();
 let currentFile = null;
+const ORGANIZE_PREVIEW_SCALE = 0.3;
+const ORGANIZE_PREVIEW_BATCH = 6;
+let organizeRenderToken = 0;
 
 async function renderThumbnails() {
   if (EditorState.activeTool !== 'organize' || EditorState.files.length === 0) return;
   const file = EditorState.files[0];
   if (currentFile === file && document.getElementById('editorCenterCanvas').children.length > 0) return;
   currentFile = file;
+  organizeRenderToken += 1;
+  const token = organizeRenderToken;
 
   const container = document.getElementById('editorCenterCanvas');
   container.innerHTML = '<div style="padding: 20px;"><div id="organizePreviews" class="page-previews"></div></div>';
   const previewsContainer = document.getElementById('organizePreviews');
 
-  organizePdfBytes = await file.arrayBuffer();
+  organizePdfBytes = await getFileBytes(file);
   organizePages = [];
   organizeSelected.clear();
 
-  const pdfDoc = await pdfjsLib.getDocument({ data: organizePdfBytes.slice(0) }).promise;
+  const pdfjsLib = await getPdfJs();
+  const loadingTask = pdfjsLib.getDocument({ data: organizePdfBytes.slice(0) });
+  const pdfDoc = await loadingTask.promise;
 
-  for (let i = 0; i < pdfDoc.numPages; i++) {
-    organizePages.push({ index: i, rotation: 0 });
-    const page = await pdfDoc.getPage(i + 1);
-    const vp = page.getViewport({ scale: 0.4 });
-    const canvas = document.createElement('canvas');
-    canvas.width = vp.width;
-    canvas.height = vp.height;
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  try {
+    for (let i = 0; i < pdfDoc.numPages; i++) {
+      if (token !== organizeRenderToken || EditorState.activeTool !== 'organize') {
+        break;
+      }
+
+      organizePages.push({ index: i, rotation: 0 });
+      const page = await pdfDoc.getPage(i + 1);
+      const vp = page.getViewport({ scale: ORGANIZE_PREVIEW_SCALE });
+      const canvas = document.createElement('canvas');
+      canvas.width = vp.width;
+      canvas.height = vp.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+      page.cleanup();
 
     const div = document.createElement('div');
     div.className = 'page-preview';
@@ -63,7 +76,16 @@ async function renderThumbnails() {
       organizePages.splice(toPos, 0, moved);
       reRenderPreviews();
     });
-    previewsContainer.appendChild(div);
+      previewsContainer.appendChild(div);
+
+      if ((i + 1) % ORGANIZE_PREVIEW_BATCH === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+  } finally {
+    if (typeof loadingTask.destroy === 'function') {
+      await loadingTask.destroy().catch(() => {});
+    }
   }
 
   document.getElementById('organizeBtn').disabled = false;

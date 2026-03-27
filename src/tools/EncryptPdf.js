@@ -1,6 +1,6 @@
 import { PDFDocument } from 'pdf-lib';
 import { downloadBlob, showError, setProgress, hideProgress, formatSize } from '../core/Utils.js';
-import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { EditorState, EditorEvents, getFileBytes } from '../core/EditorState.js';
 
 async function doEncrypt() {
   if (EditorState.activeTool !== 'encrypt' || EditorState.files.length === 0) return;
@@ -15,7 +15,7 @@ async function doEncrypt() {
   document.getElementById('encryptBtn').textContent = 'Encrypting...';
 
   try {
-    const bytes = await encryptFile.arrayBuffer();
+    const bytes = await getFileBytes(encryptFile);
     const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
     setProgress('globalProgress', 60);
 

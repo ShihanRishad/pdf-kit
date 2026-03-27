@@ -1,6 +1,6 @@
-import * as pdfjsLib from 'pdfjs-dist';
 import { setProgress, hideProgress, showError, showSuccess, formatSize } from '../core/Utils.js';
-import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { EditorState, EditorEvents, getFileBytes } from '../core/EditorState.js';
+import { getPdfJs } from '../core/PdfJs.js';
 
 async function doExtract() {
   if (EditorState.activeTool !== 'extract' || EditorState.files.length === 0) return;
@@ -10,16 +10,26 @@ async function doExtract() {
   document.getElementById('extractBtn').textContent = 'Extracting...';
 
   try {
-    const bytes = await file.arrayBuffer();
-    const pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
+    const bytes = await getFileBytes(file);
+    const pdfjsLib = await getPdfJs();
+    const loadingTask = pdfjsLib.getDocument({ data: bytes });
+    const pdfDoc = await loadingTask.promise;
+    const totalPages = pdfDoc.numPages;
     let allText = '';
 
-    for (let i = 1; i <= pdfDoc.numPages; i++) {
-      const page = await pdfDoc.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = content.items.map(item => item.str).join(' ');
-      allText += `--- Page ${i} ---\n${pageText}\n\n`;
-      setProgress('globalProgress', 10 + (80 * i / pdfDoc.numPages));
+    try {
+      for (let i = 1; i <= totalPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = content.items.map(item => item.str).join(' ');
+        allText += `--- Page ${i} ---\n${pageText}\n\n`;
+        page.cleanup();
+        setProgress('globalProgress', 10 + (80 * i / totalPages));
+      }
+    } finally {
+      if (typeof loadingTask.destroy === 'function') {
+        await loadingTask.destroy().catch(() => {});
+      }
     }
 
     setProgress('globalProgress', 100);
@@ -29,7 +39,7 @@ async function doExtract() {
     document.getElementById('extractCopyBtn').disabled = false;
     
     const res = document.getElementById('globalResultInfo');
-    res.textContent = `Extracted text from ${pdfDoc.numPages} pages`;
+    res.textContent = `Extracted text from ${totalPages} pages`;
     res.style.display = 'block';
 
     document.getElementById('extractBtn').textContent = 'Extract Now';

@@ -4,34 +4,59 @@ import './styles/layout.css';
 import './styles/components.css';
 import './styles/tools.css';
 
-// PDF.js worker setup
-import * as pdfjsLib from 'pdfjs-dist';
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.mjs',
-  import.meta.url
-).toString();
-
 // Core
 import { EditorState, EditorEvents, addFiles } from './core/EditorState.js';
 import { renderApp, initNav } from './core/App.js';
 import { initDropZones } from './core/DropZone.js';
 
-// Tools
-import { init as initMerge } from './tools/MergePdf.js';
-import { init as initSplit } from './tools/SplitPdf.js';
-import { init as initCompress } from './tools/CompressPdf.js';
-import { init as initPdf2Jpg } from './tools/PdfToJpg.js';
-import { init as initImg2Pdf } from './tools/ImagesToPdf.js';
-import { init as initHtml2Pdf } from './tools/HtmlToPdf.js';
-import { init as initOrganize } from './tools/OrganizePages.js';
-import { init as initAddText } from './tools/AddTextSign.js';
-import { init as initPageNums } from './tools/PageNumbers.js';
-import { init as initWatermark } from './tools/AddWatermark.js';
-import { init as initEncrypt } from './tools/EncryptPdf.js';
-import { init as initExtract } from './tools/ExtractText.js';
+const toolLoaders = {
+  merge: () => import('./tools/MergePdf.js'),
+  split: () => import('./tools/SplitPdf.js'),
+  compress: () => import('./tools/CompressPdf.js'),
+  pdf2jpg: () => import('./tools/PdfToJpg.js'),
+  img2pdf: () => import('./tools/ImagesToPdf.js'),
+  html2pdf: () => import('./tools/HtmlToPdf.js'),
+  organize: () => import('./tools/OrganizePages.js'),
+  addtext: () => import('./tools/AddTextSign.js'),
+  pagenums: () => import('./tools/PageNumbers.js'),
+  watermark: () => import('./tools/AddWatermark.js'),
+  encrypt: () => import('./tools/EncryptPdf.js'),
+  extract: () => import('./tools/ExtractText.js'),
+};
+
+const initializedTools = new Set();
+const loadingTools = new Map();
+
+async function ensureToolLoaded(tool) {
+  if (initializedTools.has(tool)) return;
+
+  if (loadingTools.has(tool)) {
+    await loadingTools.get(tool);
+    return;
+  }
+
+  const loader = toolLoaders[tool];
+  if (!loader) return;
+
+  const pending = loader()
+    .then((mod) => {
+      if (typeof mod.init === 'function') {
+        mod.init();
+      }
+      initializedTools.add(tool);
+    })
+    .finally(() => {
+      loadingTools.delete(tool);
+    });
+
+  loadingTools.set(tool, pending);
+  await pending;
+}
 
 // Boot
 document.addEventListener('DOMContentLoaded', () => {
+  window.__ensureToolLoaded = ensureToolLoaded;
+
   renderApp();
   initNav();
   initDropZones();
@@ -59,17 +84,10 @@ document.addEventListener('DOMContentLoaded', () => {
      }
   });
 
-  // Initialize all tools
-  initMerge();
-  initSplit();
-  initCompress();
-  initPdf2Jpg();
-  initImg2Pdf();
-  initHtml2Pdf();
-  initOrganize();
-  initAddText();
-  initPageNums();
-  initWatermark();
-  initEncrypt();
-  initExtract();
+  // Preload the default tool after first paint to keep startup fast.
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => ensureToolLoaded('merge'));
+  } else {
+    setTimeout(() => ensureToolLoaded('merge'), 250);
+  }
 });

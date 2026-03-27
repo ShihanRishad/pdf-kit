@@ -1,6 +1,6 @@
 import { PDFDocument } from 'pdf-lib';
 import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
-import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { EditorState, EditorEvents, getFileBytes } from '../core/EditorState.js';
 
 async function doCompress() {
   if (EditorState.activeTool !== 'compress' || EditorState.files.length === 0) return;
@@ -10,7 +10,7 @@ async function doCompress() {
   document.getElementById('compressBtn').textContent = 'Compressing...';
   
   try {
-    const bytes = await compressFile.arrayBuffer();
+    const bytes = await getFileBytes(compressFile);
     const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
     setProgress('globalProgress', 60);
     const compressedBytes = await pdfDoc.save({ useObjectStreams: true, addDefaultPage: false });
