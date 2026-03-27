@@ -20,7 +20,8 @@ function togglePage(div, pageNum) {
 async function renderThumbnails() {
   if (EditorState.activeTool !== 'split' || EditorState.files.length === 0) return;
   const file = EditorState.files[0];
-  if (currentFile === file && document.getElementById('editorCenterCanvas').children.length > 0) return; // already rendered
+  const hasSplitPreviews = Boolean(document.getElementById('splitPreviews'));
+  if (currentFile === file && hasSplitPreviews) return; // already rendered for split tool
   currentFile = file;
 
   const container = document.getElementById('editorCenterCanvas');

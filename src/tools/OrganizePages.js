@@ -11,7 +11,8 @@ let currentFile = null;
 async function renderThumbnails() {
   if (EditorState.activeTool !== 'organize' || EditorState.files.length === 0) return;
   const file = EditorState.files[0];
-  if (currentFile === file && document.getElementById('editorCenterCanvas').children.length > 0) return;
+  const hasOrganizePreviews = Boolean(document.getElementById('organizePreviews'));
+  if (currentFile === file && hasOrganizePreviews) return;
   currentFile = file;
 
   const container = document.getElementById('editorCenterCanvas');
