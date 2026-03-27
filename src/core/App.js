@@ -143,36 +143,83 @@ export function renderApp() {
     </div>
 
     <!-- Editor (with a sidebar, primarily) -->
+    <!-- EDITOR (Unified Workspace) -->
     <div id="appView" style="display: none;">
-      <aside class="app-sidebar">
-        <div class="sidebar-header">
-           <div class="logo" id="sidebarLogoBtn" style="cursor:pointer">pdf<span>kit</span></div>
+      
+      <!-- EDITOR TOP HEADER -->
+      <header class="editor-header">
+        <div class="editor-header-left">
+          <button class="back-btn" id="editorBackBtn" data-back title="Back to Home">← Home</button>
+          <div class="editor-tool-nav">
+             <button class="tool-nav-btn" data-tool="merge" title="Merge PDFs">📎 Merge</button>
+             <button class="tool-nav-btn" data-tool="split" title="Split PDF">✂️ Split</button>
+             <button class="tool-nav-btn" data-tool="compress" title="Compress PDF">📦 Compress</button>
+             <button class="tool-nav-btn" data-tool="organize" title="Organize Pages">🔀 Organize</button>
+             <button class="tool-nav-btn" data-tool="addtext" title="Add Text/Sign">✏️ Add Text</button>
+             <button class="tool-nav-btn" data-tool="pagenums" title="Page Numbers">🔢 Page Nums</button>
+             <button class="tool-nav-btn" data-tool="watermark" title="Watermark">💧 Watermark</button>
+             <button class="tool-nav-btn" data-tool="encrypt" title="Encrypt PDF">🔒 Encrypt</button>
+             <button class="tool-nav-btn" data-tool="extract" title="Extract Text">📝 Extract Text</button>
+             <button class="tool-nav-btn" data-tool="pdf2jpg" title="PDF to JPG">🖼️ PDF to JPG</button>
+          </div>
         </div>
-        <nav class="sidebar-nav">
-           <div class="nav-section">Essentials</div>
-           <a href="#app/merge" class="sidebar-link" data-tool="merge"><span class="icon">📎</span> Merge PDFs</a>
-           <a href="#app/split" class="sidebar-link" data-tool="split"><span class="icon">✂️</span> Split PDF</a>
-           <a href="#app/compress" class="sidebar-link" data-tool="compress"><span class="icon">📦</span> Compress PDF</a>
-           
-           <div class="nav-section">Convert</div>
-           <a href="#app/pdf2jpg" class="sidebar-link" data-tool="pdf2jpg"><span class="icon">🖼️</span> PDF to JPG</a>
-           <a href="#app/img2pdf" class="sidebar-link" data-tool="img2pdf"><span class="icon">📷</span> Images to PDF</a>
-           <a href="#app/html2pdf" class="sidebar-link" data-tool="html2pdf"><span class="icon">🌐</span> HTML to PDF</a>
-           
-           <div class="nav-section">Edit & Organize</div>
-           <a href="#app/organize" class="sidebar-link" data-tool="organize"><span class="icon">🔀</span> Organize Pages</a>
-           <a href="#app/addtext" class="sidebar-link" data-tool="addtext"><span class="icon">✏️</span> Add Text/Sign</a>
-           <a href="#app/pagenums" class="sidebar-link" data-tool="pagenums"><span class="icon">🔢</span> Page Numbers</a>
-           <a href="#app/watermark" class="sidebar-link" data-tool="watermark"><span class="icon">💧</span> Add Watermark</a>
-           <a href="#app/encrypt" class="sidebar-link" data-tool="encrypt"><span class="icon">🔒</span> Encrypt PDF</a>
-           <a href="#app/extract" class="sidebar-link" data-tool="extract"><span class="icon">📝</span> Extract Text</a>
-        </nav>
-      </aside>
-      <main class="app-main">
-        <div id="toolViewsContainer">
-          ${toolViewsHTML()}
+        <div class="editor-header-right">
+           <button class="convert-popup-btn" data-popup="img2pdf">📷 Images to PDF</button>
+           <button class="convert-popup-btn" data-popup="html2pdf">🌐 HTML to PDF</button>
         </div>
-      </main>
+      </header>
+      
+      <!-- EDITOR LAYOUT -->
+      <div class="editor-layout">
+        
+        <!-- LEFT PANEL: Files / Pages -->
+        <aside class="editor-sidebar-left">
+           <div class="sidebar-header">Files / Pages</div>
+           <div class="sidebar-content" id="globalFileList">
+              <!-- Dynamically populated by EditorState/Tools -->
+           </div>
+        </aside>
+
+        <!-- CENTER: Main Workspace -->
+        <main class="editor-main" id="editorMain">
+           <!-- Global Upload Zone -->
+           <div class="drop-zone global-drop-zone active" id="globalDropZone">
+             <input type="file" accept=".pdf" multiple id="globalFileInput">
+             <div class="drop-zone-icon">📄</div>
+             <h3>Drop PDF files here</h3>
+             <p>or click to browse</p>
+           </div>
+           
+           <!-- Center viewer/canvas (used by Add Text, Organize, etc) -->
+           <div id="editorCenterCanvas" style="display: none;"></div>
+        </main>
+
+        <!-- RIGHT PANEL: Tool Options -->
+        <aside class="editor-sidebar-right">
+           <div class="sidebar-header" id="toolOptionsTitle">Options</div>
+           <div class="sidebar-content" id="toolOptionsContainer">
+              ${toolOptionsHTML()}
+           </div>
+           <div class="sidebar-footer" id="toolActionContainer">
+              <!-- Shared progress and result info -->
+              <div class="progress-bar global-progress" id="globalProgress" style="display:none;"><div class="progress-bar-fill"></div></div>
+              <div class="result-info" id="globalResultInfo" style="margin-bottom:8px; display:none; font-size:13px; color:var(--green);"></div>
+              
+              <!-- Action buttons will be displayed here based on active tool -->
+           </div>
+        </aside>
+      </div>
+
+    </div>
+
+    <!-- POPUP MODALS -->
+    <div class="modal-overlay" id="convertModalOverlay" style="display:none;">
+       <div class="modal-container">
+          <button class="modal-close" id="convertModalClose">&times;</button>
+          <div id="convertModalContent">
+             ${popupConvertHTML()}
+          </div>
+       </div>
     </div>
 
     <footer id="homeFooter">
@@ -182,384 +229,221 @@ export function renderApp() {
 }
 
 /**
- * Returns the HTML for all tool views.
+ * HTML for right panel tool options
  */
-function toolViewsHTML() {
+function toolOptionsHTML() {
   return `
-    <!-- MERGE -->
-    <div class="tool-view" id="tool-merge">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>Merge PDFs</h2>
-        <p>Combine multiple PDF files into one document. Drag files to reorder them.</p>
-      </div>
-      <div class="drop-zone" id="mergeDropZone">
-        <input type="file" accept=".pdf" multiple id="mergeFileInput">
-        <div class="drop-zone-icon">📎</div>
-        <h3>Drop PDF files here</h3>
-        <p>or click to browse — you can add multiple files</p>
-      </div>
-      <div class="file-list" id="mergeFileList"></div>
-      <div class="action-bar" id="mergeActions" style="display:none">
-        <button class="btn-primary" id="mergeBtn">Merge PDFs</button>
-        <button class="btn-secondary" id="mergeClearBtn">Clear all</button>
-      </div>
-      <div class="progress-bar" id="mergeProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="mergeResult">
-        <h4>PDFs merged</h4>
-        <div class="result-info" id="mergeResultInfo"></div>
-        <button class="btn-primary" id="mergeDownload">Download merged PDF</button>
+    <!-- MERGE OPTIONS -->
+    <div class="tool-options" id="options-merge">
+      <p class="tool-desc">Combine multiple files. Drag pages/files in the left panel to reorder.</p>
+      <div class="action-bar flex-col" style="margin-top:20px;">
+        <button class="btn-primary w-full" id="mergeBtn" disabled>Merge PDFs</button>
+        <button class="btn-secondary w-full" id="mergeClearBtn">Clear All</button>
+        <button class="btn-primary w-full" id="mergeDownload" style="display:none;">Download Merged</button>
       </div>
     </div>
 
-    <!-- SPLIT -->
-    <div class="tool-view" id="tool-split">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>Split PDF</h2>
-        <p>Select pages to extract, or split into individual pages.</p>
+    <!-- SPLIT OPTIONS -->
+    <div class="tool-options" id="options-split">
+      <p class="tool-desc">Extract pages or split into individual files.</p>
+      <div class="option-group">
+        <label>Mode</label>
+        <select id="splitMode" class="w-full">
+          <option value="selected">Extract selected pages</option>
+          <option value="all">Split all pages</option>
+        </select>
       </div>
-      <div class="drop-zone" id="splitDropZone">
-        <input type="file" accept=".pdf" id="splitFileInput">
-        <div class="drop-zone-icon">✂️</div>
-        <h3>Drop a PDF file here</h3>
-        <p>or click to browse</p>
+      <div class="action-bar flex-col" style="margin-top:20px;">
+        <button class="btn-primary w-full" id="splitBtn" disabled>Split / Extract</button>
+        <button class="btn-secondary w-full" id="splitSelectAll">Select all</button>
+        <button class="btn-secondary w-full" id="splitDeselectAll">Deselect all</button>
+        <div id="splitDownloads" style="width:100%; display:flex; flex-direction:column; gap:8px;"></div>
       </div>
-      <div class="page-previews" id="splitPreviews"></div>
-      <div class="options-row" id="splitOptions" style="display:none">
+    </div>
+
+    <!-- COMPRESS OPTIONS -->
+    <div class="tool-options" id="options-compress">
+      <p class="tool-desc">Reduce PDF file size while keeping quality.</p>
+      <div class="action-bar flex-col" style="margin-top:20px;">
+        <button class="btn-primary w-full" id="compressBtn" disabled>Compress PDF</button>
+        <button class="btn-primary w-full" id="compressDownload" style="display:none;">Download Compressed</button>
+      </div>
+    </div>
+
+    <!-- ORGANIZE OPTIONS -->
+    <div class="tool-options" id="options-organize">
+      <p class="tool-desc">Select pages to rotate or delete.</p>
+      <div class="editor-toolbar flex-col">
+        <button id="organizeRotateCW" class="w-full">↻ Rotate 90°</button>
+        <button id="organizeRotateCCW" class="w-full">↺ Rotate -90°</button>
+        <button id="organizeDelete" class="w-full" style="color:var(--pink); border-color:rgba(244,114,182,0.3);">🗑 Delete selected</button>
+      </div>
+      <div class="action-bar flex-col" style="margin-top:20px;">
+        <button class="btn-primary w-full" id="organizeBtn" disabled>Save Changes</button>
+        <button class="btn-primary w-full" id="organizeDownload" style="display:none;">Download PDF</button>
+      </div>
+    </div>
+
+    <!-- ADD TEXT OPTIONS -->
+    <div class="tool-options" id="options-addtext">
+      <p class="tool-desc">Add text and drawings.</p>
+      <div class="editor-toolbar flex-col">
+        <button class="active w-full" id="addtextModeText">✏️ Text Mode</button>
+        <button class="w-full" id="addtextModeDraw">🖊 Draw Mode</button>
+        
+        <div class="option-group" style="margin-top:12px;">
+          <label>Color</label>
+          <input type="color" id="addtextColor" value="#000000" class="w-full h-8">
+        </div>
         <div class="option-group">
-          <label>Mode</label>
-          <select id="splitMode">
-            <option value="selected">Extract selected pages</option>
-            <option value="all">Split all pages</option>
-          </select>
+          <label>Size / Thickness</label>
+          <input type="range" id="addtextSize" min="8" max="48" value="16" class="w-full">
+        </div>
+        <div class="option-group">
+          <label>Active Page</label>
+          <select id="addtextPage" class="w-full"></select>
         </div>
       </div>
-      <div class="action-bar" id="splitActions" style="display:none">
-        <button class="btn-primary" id="splitBtn">Split / Extract</button>
-        <button class="btn-secondary" id="splitSelectAll">Select all</button>
-        <button class="btn-secondary" id="splitDeselectAll">Deselect all</button>
-      </div>
-      <div class="progress-bar" id="splitProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="splitResult">
-        <h4>Split complete</h4>
-        <div class="result-info" id="splitResultInfo"></div>
-        <div id="splitDownloads"></div>
+      <div class="action-bar flex-col" style="margin-top:20px;">
+        <button class="btn-primary w-full" id="addtextBtn" disabled>Save Annotations</button>
+        <button class="btn-secondary w-full" id="addtextUndoBtn">Undo Last</button>
+        <button class="btn-primary w-full" id="addtextDownload" style="display:none;">Download PDF</button>
       </div>
     </div>
 
-    <!-- COMPRESS -->
-    <div class="tool-view" id="tool-compress">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>Compress PDF</h2>
-        <p>Reduce PDF file size. Works best on PDFs with embedded images.</p>
+    <!-- PAGE NUMBERS OPTIONS -->
+    <div class="tool-options" id="options-pagenums">
+      <p class="tool-desc">Add page numbers to the document.</p>
+      <div class="option-group">
+        <label>Position</label>
+        <select id="pagenumsPosition" class="w-full">
+          <option value="bottom-center">Bottom Center</option>
+          <option value="bottom-right">Bottom Right</option>
+          <option value="bottom-left">Bottom Left</option>
+          <option value="top-center">Top Center</option>
+          <option value="top-right">Top Right</option>
+        </select>
       </div>
-      <div class="drop-zone" id="compressDropZone">
-        <input type="file" accept=".pdf" id="compressFileInput">
-        <div class="drop-zone-icon">📦</div>
-        <h3>Drop a PDF file here</h3>
-        <p>or click to browse</p>
+      <div class="option-group">
+        <label>Start from</label>
+        <input type="number" id="pagenumsStart" value="1" min="1" class="w-full">
       </div>
-      <div class="action-bar" id="compressActions" style="display:none">
-        <button class="btn-primary" id="compressBtn">Compress PDF</button>
+      <div class="option-group">
+        <label>Format</label>
+        <select id="pagenumsFormat" class="w-full">
+          <option value="plain">1, 2, 3</option>
+          <option value="dash">- 1 -, - 2 -</option>
+          <option value="page">Page 1, Page 2</option>
+          <option value="of">1 of N, 2 of N</option>
+        </select>
       </div>
-      <div class="progress-bar" id="compressProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="compressResult">
-        <h4>Compression complete</h4>
-        <div class="result-info" id="compressResultInfo"></div>
-        <button class="btn-primary" id="compressDownload">Download compressed PDF</button>
-      </div>
-    </div>
-
-    <!-- PDF TO JPG -->
-    <div class="tool-view" id="tool-pdf2jpg">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>PDF to JPG</h2>
-        <p>Convert each page of a PDF into a JPG image.</p>
-      </div>
-      <div class="drop-zone" id="pdf2jpgDropZone">
-        <input type="file" accept=".pdf" id="pdf2jpgFileInput">
-        <div class="drop-zone-icon">🖼️</div>
-        <h3>Drop a PDF file here</h3>
-        <p>or click to browse</p>
-      </div>
-      <div class="options-row" id="pdf2jpgOptions" style="display:none">
-        <div class="option-group">
-          <label>Quality</label>
-          <select id="pdf2jpgQuality">
-            <option value="1">Standard (72 DPI)</option>
-            <option value="2" selected>High (150 DPI)</option>
-            <option value="3">Maximum (216 DPI)</option>
-          </select>
-        </div>
-      </div>
-      <div class="action-bar" id="pdf2jpgActions" style="display:none">
-        <button class="btn-primary" id="pdf2jpgBtn">Convert to JPG</button>
-      </div>
-      <div class="progress-bar" id="pdf2jpgProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="pdf2jpgResult">
-        <h4>Conversion complete</h4>
-        <div class="result-info" id="pdf2jpgResultInfo"></div>
-        <div id="pdf2jpgDownloads"></div>
+      <div class="action-bar flex-col" style="margin-top:20px;">
+        <button class="btn-primary w-full" id="pagenumsBtn" disabled>Apply Numbers</button>
+        <button class="btn-primary w-full" id="pagenumsDownload" style="display:none;">Download PDF</button>
       </div>
     </div>
 
-    <!-- IMAGES TO PDF -->
-    <div class="tool-view" id="tool-img2pdf">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>Images to PDF</h2>
-        <p>Convert JPG or PNG images into a single PDF document.</p>
+    <!-- WATERMARK OPTIONS -->
+    <div class="tool-options" id="options-watermark">
+      <p class="tool-desc">Stamp document with text.</p>
+      <div class="option-group">
+        <label>Watermark Text</label>
+        <input type="text" id="watermarkText" value="CONFIDENTIAL" class="w-full">
       </div>
+      <div class="option-group">
+        <label>Opacity</label>
+        <select id="watermarkOpacity" class="w-full">
+          <option value="0.1">Light (10%)</option>
+          <option value="0.2" selected>Medium (20%)</option>
+          <option value="0.35">Heavy (35%)</option>
+        </select>
+      </div>
+      <div class="action-bar flex-col" style="margin-top:20px;">
+        <button class="btn-primary w-full" id="watermarkBtn" disabled>Apply Watermark</button>
+        <button class="btn-primary w-full" id="watermarkDownload" style="display:none;">Download PDF</button>
+      </div>
+    </div>
+
+    <!-- ENCRYPT OPTIONS -->
+    <div class="tool-options" id="options-encrypt">
+      <p class="tool-desc">Password protect PDF.</p>
+      <div class="option-group">
+        <label>Password</label>
+        <input type="password" id="encryptPassword" placeholder="Enter password" class="w-full">
+      </div>
+      <div class="option-group">
+        <label>Confirm Password</label>
+        <input type="password" id="encryptPasswordConfirm" placeholder="Confirm password" class="w-full">
+      </div>
+      <div class="action-bar flex-col" style="margin-top:20px;">
+        <button class="btn-primary w-full" id="encryptBtn" disabled>Encrypt PDF</button>
+        <button class="btn-primary w-full" id="encryptDownload" style="display:none;">Download PDF</button>
+      </div>
+    </div>
+
+    <!-- EXTRACT TEXT OPTIONS -->
+    <div class="tool-options" id="options-extract">
+      <p class="tool-desc">Copy document text.</p>
+      <textarea id="extractedText" class="w-full" style="min-height:200px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:var(--font-body); font-size:13px; padding:12px; border-radius:var(--radius-sm); resize:vertical; margin-top:12px;" readonly placeholder="Extracted text will appear here..."></textarea>
+      <div class="action-bar flex-col" style="margin-top:20px;">
+        <button class="btn-primary w-full" id="extractBtn" disabled>Extract Now</button>
+        <button class="btn-secondary w-full" id="extractCopyBtn" disabled>Copy to Clipboard</button>
+      </div>
+    </div>
+
+    <!-- PDF TO JPG OPTIONS -->
+    <div class="tool-options" id="options-pdf2jpg">
+      <p class="tool-desc">Convert PDF pages to JPGs.</p>
+      <div class="option-group">
+        <label>Quality</label>
+        <select id="pdf2jpgQuality" class="w-full">
+          <option value="1">Standard (72 DPI)</option>
+          <option value="2" selected>High (150 DPI)</option>
+          <option value="3">Maximum (216 DPI)</option>
+        </select>
+      </div>
+      <div class="action-bar flex-col" style="margin-top:20px;">
+        <button class="btn-primary w-full" id="pdf2jpgBtn" disabled>Convert to JPG</button>
+        <div id="pdf2jpgDownloads" style="width:100%; display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * HTML for Popup modals (Images to PDF, HTML to PDF)
+ */
+function popupConvertHTML() {
+  return `
+    <div class="popup-view" id="popup-img2pdf" style="display:none;">
+      <h2>Images to PDF</h2>
+      <p class="mb-4 text-muted">Convert JPG or PNG images into a single PDF.</p>
       <div class="drop-zone" id="img2pdfDropZone">
         <input type="file" accept="image/jpeg,image/png,image/webp" multiple id="img2pdfFileInput">
         <div class="drop-zone-icon">📷</div>
         <h3>Drop images here</h3>
-        <p>JPG, PNG — you can add multiple</p>
+        <p>JPG, PNG — add multiple</p>
       </div>
-      <div class="file-list" id="img2pdfFileList"></div>
-      <div class="action-bar" id="img2pdfActions" style="display:none">
+      <div class="file-list" id="img2pdfFileList" style="margin-top:16px;"></div>
+      <div class="action-bar" id="img2pdfActions" style="display:none; justify-content:flex-end; margin-top:16px;">
+        <button class="btn-secondary" id="img2pdfClearBtn">Clear All</button>
         <button class="btn-primary" id="img2pdfBtn">Create PDF</button>
-        <button class="btn-secondary" id="img2pdfClearBtn">Clear all</button>
+        <button class="btn-primary" id="img2pdfDownload" style="display:none;">Download PDF</button>
       </div>
-      <div class="progress-bar" id="img2pdfProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="img2pdfResult">
-        <h4>PDF created</h4>
-        <div class="result-info" id="img2pdfResultInfo"></div>
-        <button class="btn-primary" id="img2pdfDownload">Download PDF</button>
-      </div>
+      <div class="progress-bar mt-2" id="img2pdfProgress" style="display:none;"><div class="progress-bar-fill"></div></div>
+      <div class="result-info mt-2 text-green" id="img2pdfResultInfo"></div>
     </div>
 
-    <!-- HTML TO PDF -->
-    <div class="tool-view" id="tool-html2pdf">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>HTML to PDF</h2>
-        <p>Paste HTML code and convert it to a PDF.</p>
-      </div>
-      <div style="margin-top: 16px;">
-        <textarea id="htmlInput" style="width:100%;min-height:260px;background:var(--bg-card);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:16px;border-radius:var(--radius);resize:vertical;outline:none;" placeholder="Paste your HTML here..."></textarea>
-      </div>
-      <div class="action-bar">
+    <div class="popup-view" id="popup-html2pdf" style="display:none;">
+      <h2>HTML to PDF</h2>
+      <p class="mb-4 text-muted">Paste HTML code and convert it to a PDF.</p>
+      <textarea id="htmlInput" style="width:100%;min-height:220px;background:var(--bg-card);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:12px;border-radius:var(--radius);resize:vertical;outline:none;" placeholder="Paste HTML here..."></textarea>
+      <div class="action-bar" style="justify-content:flex-end; margin-top:16px;">
         <button class="btn-primary" id="html2pdfBtn">Convert to PDF</button>
+        <button class="btn-primary" id="html2pdfDownload" style="display:none;">Download PDF</button>
       </div>
-      <div class="progress-bar" id="html2pdfProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="html2pdfResult">
-        <h4>PDF created from HTML</h4>
-        <div class="result-info" id="html2pdfResultInfo"></div>
-        <button class="btn-primary" id="html2pdfDownload">Download PDF</button>
-      </div>
-    </div>
-
-    <!-- ORGANIZE PAGES -->
-    <div class="tool-view" id="tool-organize">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>Organize Pages</h2>
-        <p>Reorder, rotate, or delete PDF pages. Click to select, drag to reorder.</p>
-      </div>
-      <div class="drop-zone" id="organizeDropZone">
-        <input type="file" accept=".pdf" id="organizeFileInput">
-        <div class="drop-zone-icon">🔀</div>
-        <h3>Drop a PDF file here</h3>
-        <p>or click to browse</p>
-      </div>
-      <div class="page-previews" id="organizePreviews" style="cursor:grab"></div>
-      <div class="editor-toolbar" id="organizeToolbar" style="display:none">
-        <button id="organizeRotateCW">↻ Rotate 90°</button>
-        <button id="organizeRotateCCW">↺ Rotate -90°</button>
-        <button id="organizeDelete">🗑 Delete selected</button>
-      </div>
-      <div class="action-bar" id="organizeActions" style="display:none">
-        <button class="btn-primary" id="organizeBtn">Save changes</button>
-      </div>
-      <div class="progress-bar" id="organizeProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="organizeResult">
-        <h4>Reorganized PDF ready</h4>
-        <div class="result-info" id="organizeResultInfo"></div>
-        <button class="btn-primary" id="organizeDownload">Download PDF</button>
-      </div>
-    </div>
-
-    <!-- ADD TEXT / SIGN -->
-    <div class="tool-view" id="tool-addtext">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>Add Text / Sign</h2>
-        <p>Add text annotations or draw a signature on your PDF pages.</p>
-      </div>
-      <div class="drop-zone" id="addtextDropZone">
-        <input type="file" accept=".pdf" id="addtextFileInput">
-        <div class="drop-zone-icon">✏️</div>
-        <h3>Drop a PDF file here</h3>
-        <p>or click to browse</p>
-      </div>
-      <div class="editor-toolbar" id="addtextToolbar" style="display:none">
-        <button class="active" id="addtextModeText">✏️ Text</button>
-        <button id="addtextModeDraw">🖊 Draw</button>
-        <input type="color" id="addtextColor" value="#000000" title="Color">
-        <div style="display:flex;align-items:center;gap:6px;color:var(--text-muted);font-size:13px;">
-          Size: <input type="range" id="addtextSize" min="8" max="48" value="16">
-        </div>
-        <div class="option-group" style="flex-direction:row;align-items:center;gap:6px;">
-          <label style="text-transform:none;font-size:13px;">Page:</label>
-          <select id="addtextPage"></select>
-        </div>
-      </div>
-      <div class="editor-canvas-wrapper" id="addtextCanvasWrapper" style="display:none">
-        <canvas id="addtextCanvas"></canvas>
-      </div>
-      <div class="action-bar" id="addtextActions" style="display:none">
-        <button class="btn-primary" id="addtextBtn">Save PDF</button>
-        <button class="btn-secondary" id="addtextUndoBtn">Undo last</button>
-      </div>
-      <div class="progress-bar" id="addtextProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="addtextResult">
-        <h4>PDF saved with annotations</h4>
-        <button class="btn-primary" id="addtextDownload">Download PDF</button>
-      </div>
-    </div>
-
-    <!-- PAGE NUMBERS -->
-    <div class="tool-view" id="tool-pagenums">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>Add Page Numbers</h2>
-        <p>Automatically add page numbers to every page.</p>
-      </div>
-      <div class="drop-zone" id="pagenumsDropZone">
-        <input type="file" accept=".pdf" id="pagenumsFileInput">
-        <div class="drop-zone-icon">🔢</div>
-        <h3>Drop a PDF file here</h3>
-        <p>or click to browse</p>
-      </div>
-      <div class="options-row" id="pagenumsOptions" style="display:none">
-        <div class="option-group">
-          <label>Position</label>
-          <select id="pagenumsPosition">
-            <option value="bottom-center">Bottom Center</option>
-            <option value="bottom-right">Bottom Right</option>
-            <option value="bottom-left">Bottom Left</option>
-            <option value="top-center">Top Center</option>
-            <option value="top-right">Top Right</option>
-          </select>
-        </div>
-        <div class="option-group">
-          <label>Start from</label>
-          <input type="number" id="pagenumsStart" value="1" min="1" style="width:80px">
-        </div>
-        <div class="option-group">
-          <label>Format</label>
-          <select id="pagenumsFormat">
-            <option value="plain">1, 2, 3</option>
-            <option value="dash">- 1 -, - 2 -</option>
-            <option value="page">Page 1, Page 2</option>
-            <option value="of">1 of N, 2 of N</option>
-          </select>
-        </div>
-      </div>
-      <div class="action-bar" id="pagenumsActions" style="display:none">
-        <button class="btn-primary" id="pagenumsBtn">Add Page Numbers</button>
-      </div>
-      <div class="progress-bar" id="pagenumsProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="pagenumsResult">
-        <h4>Page numbers added</h4>
-        <div class="result-info" id="pagenumsResultInfo"></div>
-        <button class="btn-primary" id="pagenumsDownload">Download PDF</button>
-      </div>
-    </div>
-
-    <!-- WATERMARK -->
-    <div class="tool-view" id="tool-watermark">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>Add Watermark</h2>
-        <p>Add a diagonal text watermark to every page.</p>
-      </div>
-      <div class="drop-zone" id="watermarkDropZone">
-        <input type="file" accept=".pdf" id="watermarkFileInput">
-        <div class="drop-zone-icon">💧</div>
-        <h3>Drop a PDF file here</h3>
-        <p>or click to browse</p>
-      </div>
-      <div class="options-row" id="watermarkOptions" style="display:none">
-        <div class="option-group">
-          <label>Watermark Text</label>
-          <input type="text" id="watermarkText" value="CONFIDENTIAL" style="width:200px">
-        </div>
-        <div class="option-group">
-          <label>Opacity</label>
-          <select id="watermarkOpacity">
-            <option value="0.1">Light (10%)</option>
-            <option value="0.2" selected>Medium (20%)</option>
-            <option value="0.35">Heavy (35%)</option>
-          </select>
-        </div>
-      </div>
-      <div class="action-bar" id="watermarkActions" style="display:none">
-        <button class="btn-primary" id="watermarkBtn">Add Watermark</button>
-      </div>
-      <div class="progress-bar" id="watermarkProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="watermarkResult">
-        <h4>Watermark added</h4>
-        <div class="result-info" id="watermarkResultInfo"></div>
-        <button class="btn-primary" id="watermarkDownload">Download PDF</button>
-      </div>
-    </div>
-
-    <!-- ENCRYPT -->
-    <div class="tool-view" id="tool-encrypt">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>Encrypt PDF</h2>
-        <p>Password-protect your PDF. Uses pdf-lib's built-in encryption.</p>
-      </div>
-      <div class="drop-zone" id="encryptDropZone">
-        <input type="file" accept=".pdf" id="encryptFileInput">
-        <div class="drop-zone-icon">🔒</div>
-        <h3>Drop a PDF file here</h3>
-        <p>or click to browse</p>
-      </div>
-      <div class="options-row" id="encryptOptions" style="display:none">
-        <div class="option-group">
-          <label>Password</label>
-          <input type="password" id="encryptPassword" placeholder="Enter password" style="width:220px">
-        </div>
-        <div class="option-group">
-          <label>Confirm Password</label>
-          <input type="password" id="encryptPasswordConfirm" placeholder="Confirm password" style="width:220px">
-        </div>
-      </div>
-      <div class="action-bar" id="encryptActions" style="display:none">
-        <button class="btn-primary" id="encryptBtn">Encrypt PDF</button>
-      </div>
-      <div class="result-area" id="encryptResult">
-        <h4>PDF encrypted</h4>
-        <button class="btn-primary" id="encryptDownload">Download encrypted PDF</button>
-      </div>
-    </div>
-
-    <!-- EXTRACT TEXT -->
-    <div class="tool-view" id="tool-extract">
-      <div class="tool-view-header">
-        <button class="back-btn" data-back>← Back to tools</button>
-        <h2>Extract Text</h2>
-        <p>Copy all text from a PDF document.</p>
-      </div>
-      <div class="drop-zone" id="extractDropZone">
-        <input type="file" accept=".pdf" id="extractFileInput">
-        <div class="drop-zone-icon">📝</div>
-        <h3>Drop a PDF file here</h3>
-        <p>or click to browse</p>
-      </div>
-      <div class="progress-bar" id="extractProgress"><div class="progress-bar-fill"></div></div>
-      <div class="result-area" id="extractResult">
-        <h4>Text extracted</h4>
-        <textarea id="extractedText" style="width:100%;min-height:300px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font-body);font-size:14px;padding:16px;border-radius:var(--radius-sm);resize:vertical;margin-bottom:12px;" readonly></textarea>
-        <button class="btn-primary" id="extractCopyBtn">Copy to clipboard</button>
-      </div>
+      <div class="progress-bar mt-2" id="html2pdfProgress" style="display:none;"><div class="progress-bar-fill"></div></div>
+      <div class="result-info mt-2 text-green" id="html2pdfResultInfo"></div>
     </div>
   `;
 }
@@ -574,43 +458,60 @@ export function showHome() {
   document.getElementById('homeFooter').style.display = 'block';
   
   document.getElementById('appView').style.display = 'none';
-  document.querySelectorAll('.tool-view').forEach(v => v.classList.remove('active'));
   window.scrollTo(0, 0);
 }
 
 /**
- * Open a specific tool view by name in the app workspace.
+ * Open a specific tool view in the unified editor.
  */
 export function openTool(tool) {
+  // Popups
+  if (tool === 'img2pdf' || tool === 'html2pdf') {
+    document.getElementById('convertModalOverlay').style.display = 'flex';
+    document.querySelectorAll('.popup-view').forEach(v => v.style.display = 'none');
+    const popup = document.getElementById('popup-' + tool);
+    if (popup) popup.style.display = 'block';
+    
+    // Auto-return hash to previous state to not stay on popup hash
+    if (window.location.hash.startsWith('#app/')) {
+       // We only clear it if we were on home, otherwise stay in editor
+       if (document.getElementById('homeView').style.display === 'block') {
+         window.location.hash = '';
+       }
+    }
+    return;
+  }
+
   // Hide home elements
   document.getElementById('homeView').style.display = 'none';
   document.querySelector('header').style.display = 'none';
   document.getElementById('homeFooter').style.display = 'none';
   
-  // Show app view
+  // Show app view (unified editor)
   const appView = document.getElementById('appView');
-  appView.style.display = 'flex'; // Will be styled as display:flex in CSS
+  appView.style.display = 'flex'; 
   
-  // Hide all tool views
-  document.querySelectorAll('.tool-view').forEach(v => v.classList.remove('active'));
+  // Hide all tool options panels and deactivate nav buttons
+  document.querySelectorAll('.tool-options').forEach(v => v.style.display = 'none');
+  document.querySelectorAll('.tool-nav-btn').forEach(btn => btn.classList.remove('active'));
   
-  // Update active state in sidebar
-  document.querySelectorAll('.sidebar-link').forEach(link => {
-    link.classList.remove('active');
-    if (link.dataset.tool === tool) {
-      link.classList.add('active');
-    }
-  });
+  // Activate selected tool nav button
+  const activeBtn = document.querySelector(`.tool-nav-btn[data-tool="${tool}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
 
-  const view = document.getElementById('tool-' + tool);
-  if (view) {
-    view.classList.add('active');
-    view.classList.add('animate-in');
+  // Show selected tool's right panel
+  const optionsPanel = document.getElementById('options-' + tool);
+  if (optionsPanel) {
+    optionsPanel.style.display = 'block';
+    // Update title
+    document.getElementById('toolOptionsTitle').textContent = activeBtn ? activeBtn.getAttribute('title') : 'Options';
   }
   
-  // Scroll main container to top instead of full window
-  const appMain = document.querySelector('.app-main');
-  if (appMain) appMain.scrollTo(0, 0);
+  // Update state (import EditorState dynamically or emit an event for it)
+  // Tool modules will listen to changes to know what interface to render in the center/left
+  import('./EditorState.js').then(module => {
+     module.setActiveTool(tool);
+  });
 }
 
 /**
@@ -619,7 +520,6 @@ export function openTool(tool) {
 export function initNav() {
   // Logo → home
   document.getElementById('logoBtn').addEventListener('click', showHome);
-  document.getElementById('sidebarLogoBtn').addEventListener('click', showHome);
 
   // Nav buttons → scroll to sections
   document.querySelectorAll('header nav button').forEach(btn => {
@@ -643,6 +543,31 @@ export function initNav() {
       window.location.hash = '#app/' + card.dataset.tool;
     });
   });
+
+  // Editor Nav buttons
+  document.querySelectorAll('.tool-nav-btn[data-tool]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      window.location.hash = '#app/' + btn.dataset.tool;
+    });
+  });
+
+  // Convert popup buttons
+  document.querySelectorAll('.convert-popup-btn[data-popup]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      openTool(btn.dataset.popup);
+    });
+  });
+
+  // Close popup modal
+  const closeBtn = document.getElementById('convertModalClose');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      document.getElementById('convertModalOverlay').style.display = 'none';
+      if (window.location.hash.startsWith('#app/img2pdf') || window.location.hash.startsWith('#app/html2pdf')) {
+        window.history.back(); // Go back to avoid staying on popup hash when closed
+      }
+    });
+  }
 
   // Back buttons
   document.querySelectorAll('[data-back]').forEach(btn => {

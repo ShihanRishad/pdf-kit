@@ -1,11 +1,14 @@
 import * as pdfjsLib from 'pdfjs-dist';
-import { setProgress, hideProgress, showError } from '../core/Utils.js';
-
-let pdf2jpgFile = null;
+import { setProgress, hideProgress, showError, formatSize } from '../core/Utils.js';
+import { EditorState, EditorEvents } from '../core/EditorState.js';
 
 async function doConvert() {
-  if (!pdf2jpgFile) return;
-  setProgress('pdf2jpgProgress', 5);
+  if (EditorState.activeTool !== 'pdf2jpg' || EditorState.files.length === 0) return;
+  const pdf2jpgFile = EditorState.files[0];
+  
+  setProgress('globalProgress', 5);
+  document.getElementById('pdf2jpgBtn').textContent = 'Converting...';
+
   try {
     const bytes = await pdf2jpgFile.arrayBuffer();
     const pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
@@ -23,10 +26,8 @@ async function doConvert() {
 
       const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
       const btn = document.createElement('button');
-      btn.className = 'btn-secondary';
-      btn.textContent = `Page ${i}.jpg`;
-      btn.style.marginRight = '8px';
-      btn.style.marginBottom = '8px';
+      btn.className = 'btn-secondary w-full';
+      btn.textContent = `Download Page ${i}.jpg`;
       btn.onclick = () => {
         const a = document.createElement('a');
         a.href = dataUrl;
@@ -34,26 +35,50 @@ async function doConvert() {
         a.click();
       };
       downloads.appendChild(btn);
-      setProgress('pdf2jpgProgress', 5 + (90 * i / pdfDoc.numPages));
+      setProgress('globalProgress', 5 + (90 * i / pdfDoc.numPages));
     }
 
-    document.getElementById('pdf2jpgResultInfo').textContent = `${pdfDoc.numPages} page(s) converted to JPG`;
-    setProgress('pdf2jpgProgress', 100);
-    setTimeout(() => hideProgress('pdf2jpgProgress'), 500);
-    document.getElementById('pdf2jpgResult').classList.add('active');
+    const res = document.getElementById('globalResultInfo');
+    res.textContent = `${pdfDoc.numPages} page(s) converted to JPG`;
+    res.style.display = 'block';
+    
+    setProgress('globalProgress', 100);
+    setTimeout(() => hideProgress('globalProgress'), 500);
+    
+    document.getElementById('pdf2jpgBtn').textContent = 'Convert to JPG';
   } catch (err) {
     showError('Error converting: ' + err.message);
-    hideProgress('pdf2jpgProgress');
+    hideProgress('globalProgress');
+    document.getElementById('pdf2jpgBtn').textContent = 'Convert to JPG';
+  }
+}
+
+function updateUI() {
+  const btn = document.getElementById('pdf2jpgBtn');
+  if (btn) btn.disabled = EditorState.files.length === 0;
+  
+  if (EditorState.activeTool === 'pdf2jpg' && EditorState.files.length > 0) {
+      document.getElementById('editorCenterCanvas').innerHTML = `
+        <div style="display:flex; height:100%; align-items:center; justify-content:center; flex-direction:column; color:var(--text-muted);">
+           <div style="font-size:48px; margin-bottom:16px;">🖼️</div>
+           <h3>Ready to Convert</h3>
+           <p>${EditorState.files[0].name} (${formatSize(EditorState.files[0].size)})</p>
+        </div>
+      `;
   }
 }
 
 export function init() {
-  document.getElementById('pdf2jpgFileInput').addEventListener('change', function () {
-    pdf2jpgFile = this.files[0];
-    if (pdf2jpgFile) {
-      document.getElementById('pdf2jpgOptions').style.display = 'flex';
-      document.getElementById('pdf2jpgActions').style.display = 'flex';
+  document.getElementById('pdf2jpgBtn').addEventListener('click', doConvert);
+
+  EditorEvents.on('filesChanged', () => {
+    if (EditorState.activeTool === 'pdf2jpg') updateUI();
+  });
+  
+  EditorEvents.on('toolChanged', (tool) => {
+    if (tool === 'pdf2jpg') {
+       updateUI();
+       document.getElementById('pdf2jpgDownloads').innerHTML = '';
     }
   });
-  document.getElementById('pdf2jpgBtn').addEventListener('click', doConvert);
 }

@@ -1,11 +1,14 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
-
-let pagenumsFile = null;
+import { EditorState, EditorEvents } from '../core/EditorState.js';
 
 async function doPageNums() {
-  if (!pagenumsFile) return;
-  setProgress('pagenumsProgress', 20);
+  if (EditorState.activeTool !== 'pagenums' || EditorState.files.length === 0) return;
+  const pagenumsFile = EditorState.files[0];
+  
+  setProgress('globalProgress', 20);
+  document.getElementById('pagenumsBtn').textContent = 'Processing...';
+
   try {
     const bytes = await pagenumsFile.arrayBuffer();
     const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
@@ -35,24 +38,49 @@ async function doPageNums() {
 
     const pdfBytes = await pdfDoc.save();
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    setProgress('pagenumsProgress', 100);
-    setTimeout(() => hideProgress('pagenumsProgress'), 500);
-    document.getElementById('pagenumsResultInfo').textContent = `${pages.length} pages numbered — ${formatSize(pdfBytes.length)}`;
-    document.getElementById('pagenumsDownload').onclick = () => downloadBlob(blob, 'numbered_' + pagenumsFile.name);
-    document.getElementById('pagenumsResult').classList.add('active');
+    setProgress('globalProgress', 100);
+    setTimeout(() => hideProgress('globalProgress'), 500);
+    
+    const res = document.getElementById('globalResultInfo');
+    res.textContent = `${pages.length} pages numbered — ${formatSize(pdfBytes.length)}`;
+    res.style.display = 'block';
+    
+    const downloadBtn = document.getElementById('pagenumsDownload');
+    downloadBtn.style.display = 'block';
+    downloadBtn.onclick = () => downloadBlob(blob, 'numbered_' + pagenumsFile.name);
+    
+    document.getElementById('pagenumsBtn').textContent = 'Apply Numbers';
   } catch (err) {
     showError('Error: ' + err.message);
-    hideProgress('pagenumsProgress');
+    hideProgress('globalProgress');
+    document.getElementById('pagenumsBtn').textContent = 'Apply Numbers';
+  }
+}
+
+function updateUI() {
+  const btn = document.getElementById('pagenumsBtn');
+  if (btn) btn.disabled = EditorState.files.length === 0;
+  
+  // Display a prompt in the canvas center if active
+  if (EditorState.activeTool === 'pagenums' && EditorState.files.length > 0) {
+      document.getElementById('editorCenterCanvas').innerHTML = `
+        <div style="display:flex; height:100%; align-items:center; justify-content:center; flex-direction:column; color:var(--text-muted);">
+           <div style="font-size:48px; margin-bottom:16px;">🔢</div>
+           <h3>Ready to Add Page Numbers</h3>
+           <p>${EditorState.files[0].name} (${formatSize(EditorState.files[0].size)})</p>
+        </div>
+      `;
   }
 }
 
 export function init() {
-  document.getElementById('pagenumsFileInput').addEventListener('change', function () {
-    pagenumsFile = this.files[0];
-    if (pagenumsFile) {
-      document.getElementById('pagenumsOptions').style.display = 'flex';
-      document.getElementById('pagenumsActions').style.display = 'flex';
-    }
-  });
   document.getElementById('pagenumsBtn').addEventListener('click', doPageNums);
+  
+  EditorEvents.on('filesChanged', () => {
+    if (EditorState.activeTool === 'pagenums') updateUI();
+  });
+  
+  EditorEvents.on('toolChanged', (tool) => {
+    if (tool === 'pagenums') updateUI();
+  });
 }

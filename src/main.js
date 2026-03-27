@@ -12,6 +12,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 // Core
+import { EditorState, EditorEvents, addFiles } from './core/EditorState.js';
 import { renderApp, initNav } from './core/App.js';
 import { initDropZones } from './core/DropZone.js';
 
@@ -34,6 +35,29 @@ document.addEventListener('DOMContentLoaded', () => {
   renderApp();
   initNav();
   initDropZones();
+
+  // Wire up Global File Input to EditorState
+  const globalInput = document.getElementById('globalFileInput');
+  if (globalInput) {
+    globalInput.addEventListener('change', (e) => {
+      addFiles(e.target.files);
+      // Reset input so re-uploading same file works
+      e.target.value = '';
+    });
+  }
+  
+  // When files are added, hide the central dropzone if we have files
+  EditorEvents.on('filesChanged', (files) => {
+     const dropZone = document.getElementById('globalDropZone');
+     const canvasArea = document.getElementById('editorCenterCanvas');
+     if (files.length > 0) {
+        dropZone.style.display = 'none';
+        canvasArea.style.display = 'block';
+     } else {
+        dropZone.style.display = 'flex';
+        canvasArea.style.display = 'none';
+     }
+  });
 
   // Initialize all tools
   initMerge();

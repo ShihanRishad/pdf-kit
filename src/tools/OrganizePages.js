@@ -1,20 +1,28 @@
 import { PDFDocument, degrees } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
+import { EditorState, EditorEvents } from '../core/EditorState.js';
 
 let organizePdfBytes = null;
 let organizePages = [];
 let organizeSelected = new Set();
+let currentFile = null;
 
-async function handleFile(file) {
-  if (!file) return;
+async function renderThumbnails() {
+  if (EditorState.activeTool !== 'organize' || EditorState.files.length === 0) return;
+  const file = EditorState.files[0];
+  if (currentFile === file && document.getElementById('editorCenterCanvas').children.length > 0) return;
+  currentFile = file;
+
+  const container = document.getElementById('editorCenterCanvas');
+  container.innerHTML = '<div style="padding: 20px;"><div id="organizePreviews" class="page-previews"></div></div>';
+  const previewsContainer = document.getElementById('organizePreviews');
+
   organizePdfBytes = await file.arrayBuffer();
   organizePages = [];
   organizeSelected.clear();
 
   const pdfDoc = await pdfjsLib.getDocument({ data: organizePdfBytes.slice(0) }).promise;
-  const container = document.getElementById('organizePreviews');
-  container.innerHTML = '';
 
   for (let i = 0; i < pdfDoc.numPages; i++) {
     organizePages.push({ index: i, rotation: 0 });
@@ -31,6 +39,7 @@ async function handleFile(file) {
     div.draggable = true;
     div.innerHTML = `<div class="page-check">✓</div><span class="page-num">${i + 1}</span>`;
     div.insertBefore(canvas, div.firstChild);
+    
     div.addEventListener('click', () => {
       if (organizeSelected.has(i)) { organizeSelected.delete(i); div.classList.remove('selected'); }
       else { organizeSelected.add(i); div.classList.add('selected'); }
@@ -54,22 +63,24 @@ async function handleFile(file) {
       organizePages.splice(toPos, 0, moved);
       reRenderPreviews();
     });
-    container.appendChild(div);
+    previewsContainer.appendChild(div);
   }
 
-  document.getElementById('organizeToolbar').style.display = 'flex';
-  document.getElementById('organizeActions').style.display = 'flex';
+  document.getElementById('organizeBtn').disabled = false;
 }
 
 function reRenderPreviews() {
   const container = document.getElementById('organizePreviews');
+  if (!container) return;
   const divs = Array.from(container.querySelectorAll('.page-preview'));
   const divMap = {};
   divs.forEach(d => { divMap[d.dataset.idx] = d; });
   organizePages.forEach((p, pos) => {
     const d = divMap[p.index];
-    d.querySelector('.page-num').textContent = pos + 1;
-    container.appendChild(d);
+    if (d) {
+       d.querySelector('.page-num').textContent = pos + 1;
+       container.appendChild(d);
+    }
   });
 }
 
@@ -93,11 +104,14 @@ function deleteSelected() {
     const idx = parseInt(div.dataset.idx);
     if (!organizePages.find(p => p.index === idx)) div.remove();
   });
+  reRenderPreviews();
 }
 
 async function doOrganize() {
-  if (!organizePdfBytes) return;
-  setProgress('organizeProgress', 10);
+  if (EditorState.activeTool !== 'organize' || !organizePdfBytes) return;
+  setProgress('globalProgress', 10);
+  document.getElementById('organizeBtn').textContent = 'Processing...';
+
   try {
     const srcDoc = await PDFDocument.load(organizePdfBytes, { ignoreEncryption: true });
     const newDoc = await PDFDocument.create();
@@ -106,26 +120,48 @@ async function doOrganize() {
       const [page] = await newDoc.copyPages(srcDoc, [index]);
       if (rotation) page.setRotation(degrees(rotation));
       newDoc.addPage(page);
-      setProgress('organizeProgress', 10 + (80 * (i + 1) / organizePages.length));
+      setProgress('globalProgress', 10 + (80 * (i + 1) / organizePages.length));
     }
     const pdfBytes = await newDoc.save();
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    setProgress('organizeProgress', 100);
-    setTimeout(() => hideProgress('organizeProgress'), 500);
+    setProgress('globalProgress', 100);
+    setTimeout(() => hideProgress('globalProgress'), 500);
 
-    document.getElementById('organizeResultInfo').textContent = `${organizePages.length} pages — ${formatSize(pdfBytes.length)}`;
-    document.getElementById('organizeDownload').onclick = () => downloadBlob(blob, 'organized.pdf');
-    document.getElementById('organizeResult').classList.add('active');
+    const res = document.getElementById('globalResultInfo');
+    res.textContent = `${organizePages.length} pages — ${formatSize(pdfBytes.length)}`;
+    res.style.display = 'block';
+
+    const downloadBtn = document.getElementById('organizeDownload');
+    downloadBtn.style.display = 'block';
+    downloadBtn.onclick = () => downloadBlob(blob, 'organized.pdf');
+    
+    document.getElementById('organizeBtn').textContent = 'Save Changes';
   } catch (err) {
     showError('Error: ' + err.message);
-    hideProgress('organizeProgress');
+    hideProgress('globalProgress');
+    document.getElementById('organizeBtn').textContent = 'Save Changes';
   }
 }
 
 export function init() {
-  document.getElementById('organizeFileInput').addEventListener('change', function () { handleFile(this.files[0]); });
   document.getElementById('organizeRotateCW').addEventListener('click', () => rotateSelected(90));
   document.getElementById('organizeRotateCCW').addEventListener('click', () => rotateSelected(-90));
   document.getElementById('organizeDelete').addEventListener('click', deleteSelected);
   document.getElementById('organizeBtn').addEventListener('click', doOrganize);
+
+  EditorEvents.on('filesChanged', () => {
+    if (EditorState.activeTool === 'organize') {
+       if (EditorState.files.length === 0) {
+          document.getElementById('organizeBtn').disabled = true;
+          document.getElementById('editorCenterCanvas').innerHTML = '';
+          currentFile = null;
+       } else {
+          renderThumbnails();
+       }
+    }
+  });
+
+  EditorEvents.on('toolChanged', (tool) => {
+    if (tool === 'organize') renderThumbnails();
+  });
 }

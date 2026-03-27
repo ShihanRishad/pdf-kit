@@ -1,9 +1,11 @@
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
+import { EditorState, EditorEvents } from '../core/EditorState.js';
 
 let splitPdfBytes = null;
 let selectedPages = new Set();
+let currentFile = null;
 
 function togglePage(div, pageNum) {
   if (selectedPages.has(pageNum)) {
@@ -15,14 +17,19 @@ function togglePage(div, pageNum) {
   }
 }
 
-async function handleFile(file) {
-  if (!file) return;
+async function renderThumbnails() {
+  if (EditorState.activeTool !== 'split' || EditorState.files.length === 0) return;
+  const file = EditorState.files[0];
+  if (currentFile === file && document.getElementById('editorCenterCanvas').children.length > 0) return; // already rendered
+  currentFile = file;
+
+  const container = document.getElementById('editorCenterCanvas');
+  container.innerHTML = '<div style="padding: 20px;"><div id="splitPreviews" class="page-previews"></div></div>';
+  const previewsContainer = document.getElementById('splitPreviews');
+
   splitPdfBytes = await file.arrayBuffer();
   const pdfDoc = await pdfjsLib.getDocument({ data: splitPdfBytes.slice(0) }).promise;
   selectedPages.clear();
-
-  const container = document.getElementById('splitPreviews');
-  container.innerHTML = '';
 
   for (let i = 1; i <= pdfDoc.numPages; i++) {
     const page = await pdfDoc.getPage(i);
@@ -38,24 +45,25 @@ async function handleFile(file) {
     div.innerHTML = `<div class="page-check">✓</div><span class="page-num">${i}</span>`;
     div.insertBefore(canvas, div.firstChild);
     div.addEventListener('click', () => togglePage(div, i));
-    container.appendChild(div);
+    previewsContainer.appendChild(div);
   }
 
-  document.getElementById('splitOptions').style.display = 'flex';
-  document.getElementById('splitActions').style.display = 'flex';
-  document.getElementById('splitResult').classList.remove('active');
+  document.getElementById('splitBtn').disabled = false;
 }
 
 async function doSplit() {
+  if (EditorState.activeTool !== 'split' || !splitPdfBytes) return;
   const mode = document.getElementById('splitMode').value;
-  setProgress('splitProgress', 10);
+  setProgress('globalProgress', 10);
+  document.getElementById('splitBtn').textContent = 'Processing...';
 
   try {
     const srcDoc = await PDFDocument.load(splitPdfBytes, { ignoreEncryption: true });
+    const downloads = document.getElementById('splitDownloads');
+    downloads.innerHTML = '';
+    const res = document.getElementById('globalResultInfo');
 
     if (mode === 'all') {
-      const downloads = document.getElementById('splitDownloads');
-      downloads.innerHTML = '';
       const total = srcDoc.getPageCount();
       for (let i = 0; i < total; i++) {
         const newDoc = await PDFDocument.create();
@@ -63,47 +71,51 @@ async function doSplit() {
         newDoc.addPage(page);
         const bytes = await newDoc.save();
         const blob = new Blob([bytes], { type: 'application/pdf' });
+        
         const btn = document.createElement('button');
-        btn.className = 'btn-secondary';
-        btn.textContent = `Page ${i + 1}`;
-        btn.style.marginRight = '8px';
-        btn.style.marginBottom = '8px';
+        btn.className = 'btn-secondary w-full';
+        btn.textContent = `Download Page ${i + 1}`;
         btn.onclick = () => downloadBlob(blob, `page_${i + 1}.pdf`);
         downloads.appendChild(btn);
-        setProgress('splitProgress', 10 + (80 * (i + 1) / total));
+        
+        setProgress('globalProgress', 10 + (80 * (i + 1) / total));
       }
-      document.getElementById('splitResultInfo').textContent = `Split into ${total} individual pages`;
+      res.textContent = `Split into ${total} individual pages`;
     } else {
-      if (selectedPages.size === 0) { showError('Select at least one page.'); hideProgress('splitProgress'); return; }
+      if (selectedPages.size === 0) { 
+         showError('Select at least one page.'); 
+         hideProgress('globalProgress'); 
+         document.getElementById('splitBtn').textContent = 'Split / Extract';
+         return; 
+      }
       const newDoc = await PDFDocument.create();
       const sorted = Array.from(selectedPages).sort((a, b) => a - b);
       const pages = await newDoc.copyPages(srcDoc, sorted.map(p => p - 1));
       pages.forEach(p => newDoc.addPage(p));
       const bytes = await newDoc.save();
       const blob = new Blob([bytes], { type: 'application/pdf' });
-      const downloads = document.getElementById('splitDownloads');
-      downloads.innerHTML = '';
+      
       const btn = document.createElement('button');
-      btn.className = 'btn-primary';
+      btn.className = 'btn-primary w-full';
       btn.textContent = 'Download extracted pages';
       btn.onclick = () => downloadBlob(blob, 'extracted.pdf');
       downloads.appendChild(btn);
-      document.getElementById('splitResultInfo').textContent = `Extracted ${sorted.length} page(s) — ${formatSize(bytes.length)}`;
+      
+      res.textContent = `Extracted ${sorted.length} page(s) — ${formatSize(bytes.length)}`;
     }
 
-    setProgress('splitProgress', 100);
-    setTimeout(() => hideProgress('splitProgress'), 500);
-    document.getElementById('splitResult').classList.add('active');
+    res.style.display = 'block';
+    setProgress('globalProgress', 100);
+    setTimeout(() => hideProgress('globalProgress'), 500);
+    document.getElementById('splitBtn').textContent = 'Split / Extract';
   } catch (err) {
     showError('Error splitting: ' + err.message);
-    hideProgress('splitProgress');
+    hideProgress('globalProgress');
+    document.getElementById('splitBtn').textContent = 'Split / Extract';
   }
 }
 
 export function init() {
-  document.getElementById('splitFileInput').addEventListener('change', function () {
-    handleFile(this.files[0]);
-  });
   document.getElementById('splitBtn').addEventListener('click', doSplit);
   document.getElementById('splitSelectAll').addEventListener('click', () => {
     document.querySelectorAll('#splitPreviews .page-preview').forEach(d => {
@@ -114,5 +126,21 @@ export function init() {
   document.getElementById('splitDeselectAll').addEventListener('click', () => {
     selectedPages.clear();
     document.querySelectorAll('#splitPreviews .page-preview').forEach(d => d.classList.remove('selected'));
+  });
+
+  EditorEvents.on('filesChanged', () => {
+    if (EditorState.activeTool === 'split') {
+       if (EditorState.files.length === 0) {
+          document.getElementById('splitBtn').disabled = true;
+          document.getElementById('editorCenterCanvas').innerHTML = '';
+          currentFile = null;
+       } else {
+          renderThumbnails();
+       }
+    }
+  });
+
+  EditorEvents.on('toolChanged', (tool) => {
+    if (tool === 'split') renderThumbnails();
   });
 }

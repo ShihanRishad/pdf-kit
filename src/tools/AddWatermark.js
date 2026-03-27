@@ -1,11 +1,14 @@
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
-
-let watermarkFile = null;
+import { EditorState, EditorEvents } from '../core/EditorState.js';
 
 async function doWatermark() {
-  if (!watermarkFile) return;
-  setProgress('watermarkProgress', 20);
+  if (EditorState.activeTool !== 'watermark' || EditorState.files.length === 0) return;
+  const watermarkFile = EditorState.files[0];
+  
+  setProgress('globalProgress', 20);
+  document.getElementById('watermarkBtn').textContent = 'Processing...';
+
   try {
     const bytes = await watermarkFile.arrayBuffer();
     const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
@@ -30,24 +33,48 @@ async function doWatermark() {
 
     const pdfBytes = await pdfDoc.save();
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    setProgress('watermarkProgress', 100);
-    setTimeout(() => hideProgress('watermarkProgress'), 500);
-    document.getElementById('watermarkResultInfo').textContent = `"${text}" added to ${pages.length} pages — ${formatSize(pdfBytes.length)}`;
-    document.getElementById('watermarkDownload').onclick = () => downloadBlob(blob, 'watermarked_' + watermarkFile.name);
-    document.getElementById('watermarkResult').classList.add('active');
+    setProgress('globalProgress', 100);
+    setTimeout(() => hideProgress('globalProgress'), 500);
+    
+    const res = document.getElementById('globalResultInfo');
+    res.textContent = `"${text}" added to ${pages.length} pages — ${formatSize(pdfBytes.length)}`;
+    res.style.display = 'block';
+
+    const downloadBtn = document.getElementById('watermarkDownload');
+    downloadBtn.style.display = 'block';
+    downloadBtn.onclick = () => downloadBlob(blob, 'watermarked_' + watermarkFile.name);
+    
+    document.getElementById('watermarkBtn').textContent = 'Apply Watermark';
   } catch (err) {
     showError('Error: ' + err.message);
-    hideProgress('watermarkProgress');
+    hideProgress('globalProgress');
+    document.getElementById('watermarkBtn').textContent = 'Apply Watermark';
+  }
+}
+
+function updateUI() {
+  const btn = document.getElementById('watermarkBtn');
+  if (btn) btn.disabled = EditorState.files.length === 0;
+  
+  if (EditorState.activeTool === 'watermark' && EditorState.files.length > 0) {
+      document.getElementById('editorCenterCanvas').innerHTML = `
+        <div style="display:flex; height:100%; align-items:center; justify-content:center; flex-direction:column; color:var(--text-muted);">
+           <div style="font-size:48px; margin-bottom:16px;">💧</div>
+           <h3>Ready to Add Watermark</h3>
+           <p>${EditorState.files[0].name} (${formatSize(EditorState.files[0].size)})</p>
+        </div>
+      `;
   }
 }
 
 export function init() {
-  document.getElementById('watermarkFileInput').addEventListener('change', function () {
-    watermarkFile = this.files[0];
-    if (watermarkFile) {
-      document.getElementById('watermarkOptions').style.display = 'flex';
-      document.getElementById('watermarkActions').style.display = 'flex';
-    }
-  });
   document.getElementById('watermarkBtn').addEventListener('click', doWatermark);
+  
+  EditorEvents.on('filesChanged', () => {
+    if (EditorState.activeTool === 'watermark') updateUI();
+  });
+  
+  EditorEvents.on('toolChanged', (tool) => {
+    if (tool === 'watermark') updateUI();
+  });
 }
