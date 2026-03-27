@@ -282,6 +282,12 @@ header nav button.active {
   justify-content: center;
 }
 
+#editorCenterCanvas {
+  width: 100%;
+  flex: 1;
+  overflow-y: auto;
+}
+
 /* Global Drop Zone */
 .global-drop-zone {
   width: 100%;
