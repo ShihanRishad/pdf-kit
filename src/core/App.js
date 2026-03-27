@@ -469,7 +469,9 @@ export function openTool(tool) {
   if (tool === 'img2pdf' || tool === 'html2pdf') {
     const ensureLoaded = window.__ensureToolLoaded;
     if (typeof ensureLoaded === 'function') {
-      ensureLoaded(tool).catch(() => {});
+      ensureLoaded(tool).catch((err) => {
+        console.error(`Failed to load tool "${tool}"`, err);
+      });
     }
 
     document.getElementById('convertModalOverlay').style.display = 'flex';
@@ -517,8 +519,14 @@ export function openTool(tool) {
   const ready = typeof ensureLoaded === 'function' ? ensureLoaded(tool) : Promise.resolve();
 
   ready
-    .catch(() => {
-      // If loading fails we still switch tool so UI remains navigable.
+    .catch((err) => {
+      // Keep UI navigable, but make failures visible for debugging.
+      console.error(`Failed to load tool "${tool}"`, err);
+      const res = document.getElementById('globalResultInfo');
+      if (res) {
+        res.textContent = `Failed to load ${tool}. Please refresh and try again.`;
+        res.style.display = 'block';
+      }
     })
     .finally(() => {
       import('./EditorState.js').then(module => {

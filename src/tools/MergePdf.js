@@ -6,9 +6,18 @@ function renderList() {
   if (EditorState.activeTool !== 'merge') return;
   const list = document.getElementById('globalFileList');
   list.innerHTML = '';
+  const center = document.getElementById('editorCenterCanvas');
   
   if (EditorState.files.length === 0) {
      list.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">No files added yet.</p>';
+     if (center) {
+       center.innerHTML = `
+         <div style="display:flex; height:100%; align-items:center; justify-content:center; flex-direction:column; color:var(--text-muted);">
+           <div style="font-size:48px; margin-bottom:16px;">📎</div>
+           <h3>Add at least two PDFs to merge</h3>
+         </div>
+       `;
+     }
   }
 
   EditorState.files.forEach((f, i) => {
@@ -78,6 +87,21 @@ function renderList() {
   const mergeBtn = document.getElementById('mergeBtn');
   if (mergeBtn) {
     mergeBtn.disabled = EditorState.files.length < 2;
+  }
+
+  if (center && EditorState.files.length > 0) {
+    const totalSize = EditorState.files.reduce((sum, f) => sum + f.size, 0);
+    const mergeHint = EditorState.files.length < 2
+      ? 'Add one more file to enable merge.'
+      : 'Click "Merge PDFs" on the right to create a single file.';
+    center.innerHTML = `
+      <div style="display:flex; height:100%; align-items:center; justify-content:center; flex-direction:column; color:var(--text-muted); text-align:center; padding:24px;">
+        <div style="font-size:48px; margin-bottom:16px;">📎</div>
+        <h3>${EditorState.files.length} file(s) ready for merge</h3>
+        <p style="margin-top:6px;">Total size: ${formatSize(totalSize)}</p>
+        <p style="margin-top:4px;">${mergeHint}</p>
+      </div>
+    `;
   }
 }
 
