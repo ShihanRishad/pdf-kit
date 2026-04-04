@@ -1,6 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { setProgress, hideProgress, showError, showSuccess, formatSize } from '../core/Utils.js';
 import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { getPdfJsDocument } from '../core/PdfCache.js';
 
 async function doExtract() {
   if (EditorState.activeTool !== 'extract' || EditorState.files.length === 0) return;
@@ -10,8 +11,7 @@ async function doExtract() {
   document.getElementById('extractBtn').textContent = 'Extracting...';
 
   try {
-    const bytes = await file.arrayBuffer();
-    const pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
+    const pdfDoc = await getPdfJsDocument(file, pdfjsLib);
     let allText = '';
 
     for (let i = 1; i <= pdfDoc.numPages; i++) {

@@ -2,6 +2,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import { downloadBlob, setProgress, hideProgress, hexToRgb, showError, formatSize } from '../core/Utils.js';
 import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { getPdfBytes, getPdfJsDocument } from '../core/PdfCache.js';
 
 let addtextPdfBytes = null;
 let addtextPdfDoc = null;
@@ -142,8 +143,8 @@ async function renderCanvas() {
   }
   currentFile = file;
 
-  addtextPdfBytes = await file.arrayBuffer();
-  addtextPdfDoc = await pdfjsLib.getDocument({ data: addtextPdfBytes.slice(0) }).promise;
+  addtextPdfBytes = await getPdfBytes(file);
+  addtextPdfDoc = await getPdfJsDocument(file, pdfjsLib);
   addtextAnnotations = {};
   addtextCurrentPage = 0;
 

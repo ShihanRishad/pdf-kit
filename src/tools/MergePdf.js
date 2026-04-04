@@ -1,6 +1,7 @@
 import { PDFDocument } from 'pdf-lib';
 import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
 import { EditorState, EditorEvents, clearFiles } from '../core/EditorState.js';
+import { getPdfBytes } from '../core/PdfCache.js';
 
 function renderList() {
   if (EditorState.activeTool !== 'merge') return;
@@ -89,7 +90,7 @@ async function doMerge() {
   try {
     const merged = await PDFDocument.create();
     for (let i = 0; i < EditorState.files.length; i++) {
-      const bytes = await EditorState.files[i].arrayBuffer();
+      const bytes = await getPdfBytes(EditorState.files[i]);
       const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
       const pages = await merged.copyPages(doc, doc.getPageIndices());
       pages.forEach(p => merged.addPage(p));

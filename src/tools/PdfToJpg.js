@@ -1,6 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { setProgress, hideProgress, showError, formatSize } from '../core/Utils.js';
 import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { getPdfJsDocument } from '../core/PdfCache.js';
 
 async function doConvert() {
   if (EditorState.activeTool !== 'pdf2jpg' || EditorState.files.length === 0) return;
@@ -10,8 +11,7 @@ async function doConvert() {
   document.getElementById('pdf2jpgBtn').textContent = 'Converting...';
 
   try {
-    const bytes = await pdf2jpgFile.arrayBuffer();
-    const pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
+    const pdfDoc = await getPdfJsDocument(pdf2jpgFile, pdfjsLib);
     const scale = parseFloat(document.getElementById('pdf2jpgQuality').value);
     const downloads = document.getElementById('pdf2jpgDownloads');
     downloads.innerHTML = '';
