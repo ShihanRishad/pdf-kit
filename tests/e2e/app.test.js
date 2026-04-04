@@ -28,7 +28,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await browser.close();
-});
+}, 60000);
 
 beforeEach(async () => {
   await page.goto(base_url, { waitUntil: 'load' });
