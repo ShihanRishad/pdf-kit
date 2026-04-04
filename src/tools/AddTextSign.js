@@ -4,12 +4,14 @@ import { downloadBlob, setProgress, hideProgress, hexToRgb, showError, formatSiz
 import { EditorState, EditorEvents } from '../core/EditorState.js';
 
 let addtextPdfBytes = null;
+let addtextPdfDoc = null;
 let addtextAnnotations = {};
 let addtextMode = 'text';
 let addtextCurrentPage = 0;
 let isDrawing = false;
 let currentDrawPoints = [];
 let currentFile = null;
+let renderToken = 0;
 
 function drawAnnotation(ctx, ann, scale) {
   if (ann.type === 'text') {
@@ -28,10 +30,18 @@ function drawAnnotation(ctx, ann, scale) {
   }
 }
 
-async function renderPage() {
-  addtextCurrentPage = parseInt(document.getElementById('addtextPage').value);
-  const pdfDoc = await pdfjsLib.getDocument({ data: addtextPdfBytes.slice(0) }).promise;
-  const page = await pdfDoc.getPage(addtextCurrentPage + 1);
+function clampPageIndex(pageIndex) {
+  const total = addtextPdfDoc?.numPages || 0;
+  if (!total) return 0;
+  if (Number.isNaN(pageIndex)) return 0;
+  return Math.max(0, Math.min(pageIndex, total - 1));
+}
+
+async function renderPage(pageIndex = addtextCurrentPage) {
+  if (!addtextPdfDoc) return;
+  addtextCurrentPage = clampPageIndex(pageIndex);
+  const localToken = ++renderToken;
+  const page = await addtextPdfDoc.getPage(addtextCurrentPage + 1);
   const scale = 1.5;
   const vp = page.getViewport({ scale });
   
@@ -45,7 +55,12 @@ async function renderPage() {
   canvas.width = vp.width;
   canvas.height = vp.height;
   const ctx = canvas.getContext('2d');
+
+  const pageSelect = document.getElementById('addtextPage');
+  if (pageSelect) pageSelect.value = String(addtextCurrentPage);
+
   await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  if (localToken !== renderToken) return;
 
   const anns = addtextAnnotations[addtextCurrentPage] || [];
   anns.forEach(a => drawAnnotation(ctx, a, scale));
@@ -121,17 +136,20 @@ function onMouseUp() {
 async function renderCanvas() {
   if (EditorState.activeTool !== 'addtext' || EditorState.files.length === 0) return;
   const file = EditorState.files[0];
-  if (currentFile === file && document.getElementById('addtextCanvas')) return;
+  if (currentFile === file && addtextPdfDoc && document.getElementById('addtextCanvas')) {
+    renderPage(addtextCurrentPage);
+    return;
+  }
   currentFile = file;
 
   addtextPdfBytes = await file.arrayBuffer();
+  addtextPdfDoc = await pdfjsLib.getDocument({ data: addtextPdfBytes.slice(0) }).promise;
   addtextAnnotations = {};
   addtextCurrentPage = 0;
 
-  const pdfDoc = await pdfjsLib.getDocument({ data: addtextPdfBytes.slice(0) }).promise;
   const select = document.getElementById('addtextPage');
   select.innerHTML = '';
-  for (let i = 1; i <= pdfDoc.numPages; i++) {
+  for (let i = 1; i <= addtextPdfDoc.numPages; i++) {
     const opt = document.createElement('option');
     opt.value = i - 1;
     opt.textContent = 'Page ' + i;
@@ -210,8 +228,7 @@ export function init() {
   document.getElementById('addtextModeText').addEventListener('click', () => setMode('text'));
   document.getElementById('addtextModeDraw').addEventListener('click', () => setMode('draw'));
   document.getElementById('addtextPage').addEventListener('change', () => {
-     addtextCurrentPage = parseInt(document.getElementById('addtextPage').value);
-     renderPage();
+     renderPage(parseInt(document.getElementById('addtextPage').value, 10));
   });
   document.getElementById('addtextBtn').addEventListener('click', doSave);
   document.getElementById('addtextUndoBtn').addEventListener('click', () => {
@@ -225,6 +242,8 @@ export function init() {
           document.getElementById('addtextBtn').disabled = true;
           document.getElementById('editorCenterCanvas').innerHTML = '';
           currentFile = null;
+          addtextPdfBytes = null;
+          addtextPdfDoc = null;
        } else {
           renderCanvas();
        }
