@@ -1,321 +1,107 @@
-/**
- * App.js — Renders the full app HTML and handles navigation.
- */
+import { EditorEvents, EditorState, getSourceItemsByKind, removeFile, removeSourceItem, reorderSourceItems, clearSourceItems, setActiveTool } from './EditorState.js';
+import { DEFAULT_TOOL, TOOL_ORDER, getToolDefinition } from './ToolRegistry.js';
+import { downloadBlob, formatSize } from './Utils.js';
 
-/**
- * Render the entire app shell into #app.
- */
-export function renderApp() {
-  const app = document.getElementById('app');
-  app.innerHTML = `
-    <!-- HEADER -->
-    <header>
-      <div class="logo" id="logoBtn">pdf<span>kit</span></div>
-      <nav id="mainNav">
-        <button class="active" data-section="essentials">Essentials</button>
-        <button data-section="edit">Edit & Organize</button>
-        <button data-section="convert">Convert</button>
-        <button data-section="howitworks">How does it Work?</button>
-        <button data-section="support">Sponsor</button>
-      </nav>
-    </header>
-
-    <!-- HOME VIEW -->
-    <div id="homeView">
-      <section class="hero">
-        <h1>Free PDF tools,<br><em>no nonsense</em></h1>
-        <p>Merge, split, compress, convert, and edit PDFs right in your browser. No uploads to servers. No watermarks. No sign-up.</p>
-        <div class="hero-badges">
-          <span>No watermark</span>
-          <span>Files stay on device</span>
-          <span>Works offline</span>
-          <span>100% free</span>
-        </div>
-      </section>
-
-      <div class="tools-container">
-        <!-- ESSENTIALS -->
-        <div class="tool-section" id="section-essentials">
-          <div class="section-label">Essentials</div>
-          <div class="tool-grid">
-            <div class="tool-card" data-tool="merge" style="--card-accent: var(--accent); --icon-bg: rgba(255,107,74,0.12)">
-              <div class="tool-icon">📎</div>
-              <h3>Merge PDFs</h3>
-              <p>Combine multiple PDFs into one. Drag to reorder.</p>
-            </div>
-            <div class="tool-card" data-tool="split" style="--card-accent: var(--blue); --icon-bg: rgba(96,165,250,0.12)">
-              <div class="tool-icon">✂️</div>
-              <h3>Split PDF</h3>
-              <p>Extract specific pages or split into individual pages.</p>
-            </div>
-            <div class="tool-card" data-tool="compress" style="--card-accent: var(--green); --icon-bg: rgba(74,222,128,0.12)">
-              <div class="tool-icon">📦</div>
-              <h3>Compress PDF</h3>
-              <p>Reduce file size while keeping quality.</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- CONVERT -->
-        <div class="tool-section" id="section-convert">
-          <div class="section-label">Convert</div>
-          <div class="tool-grid">
-            <div class="tool-card" data-tool="pdf2jpg" style="--card-accent: var(--yellow); --icon-bg: rgba(251,191,36,0.12)">
-              <div class="tool-icon">🖼️</div>
-              <h3>PDF to JPG</h3>
-              <p>Convert PDF pages to high-quality images.</p>
-            </div>
-            <div class="tool-card" data-tool="img2pdf" style="--card-accent: var(--purple); --icon-bg: rgba(167,139,250,0.12)">
-              <div class="tool-icon">📷</div>
-              <h3>Images to PDF</h3>
-              <p>Convert JPG, PNG images into a single PDF.</p>
-            </div>
-            <div class="tool-card" data-tool="html2pdf" style="--card-accent: var(--pink); --icon-bg: rgba(244,114,182,0.12)">
-              <div class="tool-icon">🌐</div>
-              <h3>HTML to PDF</h3>
-              <p>Convert HTML code into a PDF document.</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- EDIT & ORGANIZE -->
-        <div class="tool-section" id="section-edit">
-          <div class="section-label">Edit & Organize</div>
-          <div class="tool-grid">
-            <div class="tool-card" data-tool="organize" style="--card-accent: var(--blue); --icon-bg: rgba(96,165,250,0.12)">
-              <div class="tool-icon">🔀</div>
-              <h3>Organize Pages</h3>
-              <p>Reorder, rotate, or delete pages visually.</p>
-            </div>
-            <div class="tool-card" data-tool="addtext" style="--card-accent: var(--accent); --icon-bg: rgba(255,107,74,0.12)">
-              <div class="tool-icon">✏️</div>
-              <h3>Add Text / Sign</h3>
-              <p>Add text, annotations, or draw a signature on any PDF.</p>
-            </div>
-            <div class="tool-card" data-tool="pagenums" style="--card-accent: var(--purple); --icon-bg: rgba(167,139,250,0.12)">
-              <div class="tool-icon">🔢</div>
-              <h3>Page Numbers</h3>
-              <p>Add page numbers with custom formatting.</p>
-            </div>
-            <div class="tool-card" data-tool="watermark" style="--card-accent: var(--green); --icon-bg: rgba(74,222,128,0.12)">
-              <div class="tool-icon">💧</div>
-              <h3>Add Watermark</h3>
-              <p>Protect docs with text watermarks.</p>
-            </div>
-            <div class="tool-card" data-tool="encrypt" style="--card-accent: var(--yellow); --icon-bg: rgba(251,191,36,0.12)">
-              <div class="tool-icon">🔒</div>
-              <h3>Encrypt PDF</h3>
-              <p>Password-protect your PDF files.</p>
-            </div>
-            <div class="tool-card" data-tool="extract" style="--card-accent: var(--pink); --icon-bg: rgba(244,114,182,0.12)">
-              <div class="tool-icon">📝</div>
-              <h3>Extract Text</h3>
-              <p>Copy all text content from a PDF.</p>
-            </div>
-          </div>
-        </div>
-      
-
-
-        <!-- HOW DOES IT WORK -->
-        <div class="tool-section" id="section-howitworks">
-          <div class="section-label">How does it Work?</div>
-          <div class="info-card">
-            <p style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:14px">Your files never leave your device. Ever.</p>
-            <p>Most online PDF tools work by sending your file to a server, processing it there, and sending it back. That means your documents pass through someone else's computer — which is a problem if they contain anything sensitive.</p>
-            <p style="margin-top:12px">pdfkit works differently. When you drop a file in, your browser reads it directly into memory on your machine. All the processing happens right there in your browser tab. When it is done, your file is ready to download, and nothing was ever sent anywhere.</p>
-            <p style="margin-top:12px">Close the tab and it is all gone. No copies stored. No servers involved. You can even go offline after the page loads and everything still works.</p>
-            <p style="margin-top:16px;font-size:15px;font-weight:600;color:var(--text)">Your files are yours. We never see them.</p>
-          </div>
-        </div>
-
-        <!-- SUPPORT -->
-        <div class="tool-section" id="section-support">
-          <div class="section-label">Sponsor</div>
-          <div class="info-card">
-            <p>pdfkit is free and open-source. If it has been useful to you, consider supporting its development via GitHub Sponsors.</p>
-            <a href="https://github.com/sponsors/viveknaskar" target="_blank" rel="noopener" class="btn-sponsor">
-              ❤️ Sponsor on GitHub
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Editor (with a sidebar, primarily) -->
-    <!-- EDITOR (Unified Workspace) -->
-    <div id="appView" style="display: none;">
-      
-      <!-- EDITOR TOP HEADER -->
-      <header class="editor-header">
-        <div class="editor-header-left">
-          <button class="back-btn" id="editorBackBtn" data-back title="Back to Home">← Home</button>
-          <div class="editor-tool-nav">
-             <button class="tool-nav-btn" data-tool="merge" title="Merge PDFs">📎 Merge</button>
-             <button class="tool-nav-btn" data-tool="split" title="Split PDF">✂️ Split</button>
-             <button class="tool-nav-btn" data-tool="compress" title="Compress PDF">📦 Compress</button>
-             <button class="tool-nav-btn" data-tool="organize" title="Organize Pages">🔀 Organize</button>
-             <button class="tool-nav-btn" data-tool="addtext" title="Add Text/Sign">✏️ Add Text</button>
-             <button class="tool-nav-btn" data-tool="pagenums" title="Page Numbers">🔢 Page Nums</button>
-             <button class="tool-nav-btn" data-tool="watermark" title="Watermark">💧 Watermark</button>
-             <button class="tool-nav-btn" data-tool="encrypt" title="Encrypt PDF">🔒 Encrypt</button>
-             <button class="tool-nav-btn" data-tool="extract" title="Extract Text">📝 Extract Text</button>
-             <button class="tool-nav-btn" data-tool="pdf2jpg" title="PDF to JPG">🖼️ PDF to JPG</button>
-          </div>
-        </div>
-        <div class="editor-header-right">
-           <button class="convert-popup-btn" data-popup="img2pdf">📷 Images to PDF</button>
-           <button class="convert-popup-btn" data-popup="html2pdf">🌐 HTML to PDF</button>
-        </div>
-      </header>
-      
-      <!-- EDITOR LAYOUT -->
-      <div class="editor-layout">
-        
-        <!-- LEFT PANEL: Files / Pages -->
-        <aside class="editor-sidebar-left">
-           <div class="sidebar-header">Files / Pages</div>
-           <div class="sidebar-content" id="globalFileList">
-              <!-- Dynamically populated by EditorState/Tools -->
-           </div>
-        </aside>
-
-        <!-- CENTER: Main Workspace -->
-        <main class="editor-main" id="editorMain">
-           <!-- Global Upload Zone -->
-           <div class="drop-zone global-drop-zone active" id="globalDropZone">
-             <input type="file" accept=".pdf" multiple id="globalFileInput">
-             <div class="drop-zone-icon">📄</div>
-             <h3>Drop PDF files here</h3>
-             <p>or click to browse</p>
-           </div>
-           
-           <!-- Center viewer/canvas (used by Add Text, Organize, etc) -->
-           <div id="editorCenterCanvas" style="display: none;"></div>
-        </main>
-
-        <!-- RIGHT PANEL: Tool Options -->
-        <aside class="editor-sidebar-right">
-           <div class="sidebar-header" id="toolOptionsTitle">Options</div>
-           <div class="sidebar-content" id="toolOptionsContainer">
-              ${toolOptionsHTML()}
-           </div>
-           <div class="sidebar-footer" id="toolActionContainer">
-              <!-- Shared progress and result info -->
-              <div class="progress-bar global-progress" id="globalProgress" style="display:none;"><div class="progress-bar-fill"></div></div>
-              <div class="result-info" id="globalResultInfo" style="margin-bottom:8px; display:none; font-size:13px; color:var(--green);"></div>
-              
-              <!-- Action buttons will be displayed here based on active tool -->
-           </div>
-        </aside>
-      </div>
-
-    </div>
-
-    <!-- POPUP MODALS -->
-    <div class="modal-overlay" id="convertModalOverlay" style="display:none;">
-       <div class="modal-container">
-          <button class="modal-close" id="convertModalClose">&times;</button>
-          <div id="convertModalContent">
-             ${popupConvertHTML()}
-          </div>
-       </div>
-    </div>
-
-    <footer id="homeFooter">
-      <p>pdfkit — All processing happens in your browser. Your files never leave your device.</p>
-    </footer>
-  `;
+function getSidebarItems() {
+  if (EditorState.activeTool === 'merge') return getSourceItemsByKind('pdf');
+  if (EditorState.activeTool === 'img2pdf') return getSourceItemsByKind('image');
+  if (EditorState.activeTool === 'html2pdf') return getSourceItemsByKind('html');
+  return [];
 }
 
-/**
- * HTML for right panel tool options
- */
+function renderToolNav() {
+  return TOOL_ORDER.map((toolId) => {
+    const tool = getToolDefinition(toolId);
+    return `<button class="tool-nav-btn" data-tool="${tool.id}" title="${tool.title}">${tool.label}</button>`;
+  }).join('');
+}
+
+function renderToolCards() {
+  return TOOL_ORDER.map((toolId) => {
+    const tool = getToolDefinition(toolId);
+    return `
+      <button class="tool-card" data-tool="${tool.id}">
+        <span class="tool-card-label">${tool.label}</span>
+        <strong>${tool.title}</strong>
+        <p>${tool.view === 'composer' ? 'Compose, convert, and continue editing in the same workspace.' : 'Open inside the unified workspace and keep your output chained.'}</p>
+      </button>
+    `;
+  }).join('');
+}
+
 function toolOptionsHTML() {
   return `
-    <!-- MERGE OPTIONS -->
-    <div class="tool-options" id="options-merge">
-      <p class="tool-desc">Combine multiple files. Drag pages/files in the left panel to reorder.</p>
-      <div class="action-bar flex-col" style="margin-top:20px;">
+    <section class="tool-options" id="options-merge">
+      <p class="tool-desc">Build a merged document from the PDFs in the left rail.</p>
+      <div class="action-bar flex-col">
         <button class="btn-primary w-full" id="mergeBtn" disabled>Merge PDFs</button>
-        <button class="btn-secondary w-full" id="mergeClearBtn">Clear All</button>
-        <button class="btn-primary w-full" id="mergeDownload" style="display:none;">Download Merged</button>
+        <button class="btn-secondary w-full" id="mergeClearBtn">Clear imported PDFs</button>
       </div>
-    </div>
+    </section>
 
-    <!-- SPLIT OPTIONS -->
-    <div class="tool-options" id="options-split">
-      <p class="tool-desc">Extract pages or split into individual files.</p>
+    <section class="tool-options" id="options-split">
+      <p class="tool-desc">Select pages in the canvas, then extract them or split every page.</p>
       <div class="option-group">
-        <label>Mode</label>
+        <label for="splitMode">Mode</label>
         <select id="splitMode" class="w-full">
           <option value="selected">Extract selected pages</option>
           <option value="all">Split all pages</option>
         </select>
       </div>
-      <div class="action-bar flex-col" style="margin-top:20px;">
-        <button class="btn-primary w-full" id="splitBtn" disabled>Split / Extract</button>
+      <div class="action-bar flex-col">
+        <button class="btn-primary w-full" id="splitBtn" disabled>Run Split</button>
         <button class="btn-secondary w-full" id="splitSelectAll">Select all</button>
-        <button class="btn-secondary w-full" id="splitDeselectAll">Deselect all</button>
-        <div id="splitDownloads" style="width:100%; display:flex; flex-direction:column; gap:8px;"></div>
+        <button class="btn-secondary w-full" id="splitDeselectAll">Clear selection</button>
       </div>
-    </div>
+    </section>
 
-    <!-- COMPRESS OPTIONS -->
-    <div class="tool-options" id="options-compress">
-      <p class="tool-desc">Reduce PDF file size while keeping quality.</p>
-      <div class="action-bar flex-col" style="margin-top:20px;">
+    <section class="tool-options" id="options-compress">
+      <p class="tool-desc">Create a smaller version of the current working PDF.</p>
+      <div class="action-bar flex-col">
         <button class="btn-primary w-full" id="compressBtn" disabled>Compress PDF</button>
-        <button class="btn-primary w-full" id="compressDownload" style="display:none;">Download Compressed</button>
       </div>
-    </div>
+    </section>
 
-    <!-- ORGANIZE OPTIONS -->
-    <div class="tool-options" id="options-organize">
-      <p class="tool-desc">Select pages to rotate or delete.</p>
+    <section class="tool-options" id="options-organize">
+      <p class="tool-desc">Reorder, rotate, and remove pages from the current document.</p>
       <div class="editor-toolbar flex-col">
-        <button id="organizeRotateCW" class="w-full">↻ Rotate 90°</button>
-        <button id="organizeRotateCCW" class="w-full">↺ Rotate -90°</button>
-        <button id="organizeDelete" class="w-full" style="color:var(--pink); border-color:rgba(244,114,182,0.3);">🗑 Delete selected</button>
+        <button id="organizeRotateCW" class="w-full">Rotate 90</button>
+        <button id="organizeRotateCCW" class="w-full">Rotate -90</button>
+        <button id="organizeDelete" class="w-full">Delete selected</button>
       </div>
-      <div class="action-bar flex-col" style="margin-top:20px;">
-        <button class="btn-primary w-full" id="organizeBtn" disabled>Save Changes</button>
-        <button class="btn-primary w-full" id="organizeDownload" style="display:none;">Download PDF</button>
+      <div class="action-bar flex-col">
+        <button class="btn-primary w-full" id="organizeBtn" disabled>Apply Changes</button>
       </div>
-    </div>
+    </section>
 
-    <!-- ADD TEXT OPTIONS -->
-    <div class="tool-options" id="options-addtext">
-      <p class="tool-desc">Add text and drawings.</p>
+    <section class="tool-options" id="options-addtext">
+      <p class="tool-desc">Annotate the current page with text or freehand strokes.</p>
       <div class="editor-toolbar flex-col">
-        <button class="active w-full" id="addtextModeText">✏️ Text Mode</button>
-        <button class="w-full" id="addtextModeDraw">🖊 Draw Mode</button>
-        
-        <div class="option-group" style="margin-top:12px;">
-          <label>Color</label>
-          <input type="color" id="addtextColor" value="#000000" class="w-full h-8">
-        </div>
-        <div class="option-group">
-          <label>Size / Thickness</label>
-          <input type="range" id="addtextSize" min="8" max="48" value="16" class="w-full">
-        </div>
-        <div class="option-group">
-          <label>Active Page</label>
-          <select id="addtextPage" class="w-full"></select>
-        </div>
+        <button class="active w-full" id="addtextModeText">Text Mode</button>
+        <button class="w-full" id="addtextModeDraw">Draw Mode</button>
       </div>
-      <div class="action-bar flex-col" style="margin-top:20px;">
+      <div class="option-group">
+        <label for="addtextColor">Color</label>
+        <input type="color" id="addtextColor" value="#111111" class="w-full">
+      </div>
+      <div class="option-group">
+        <label for="addtextSize">Size / Thickness</label>
+        <input type="range" id="addtextSize" min="8" max="48" value="16" class="w-full">
+      </div>
+      <div class="option-group">
+        <label for="addtextPage">Page</label>
+        <select id="addtextPage" class="w-full"></select>
+      </div>
+      <div class="action-bar flex-col">
         <button class="btn-primary w-full" id="addtextBtn" disabled>Save Annotations</button>
         <button class="btn-secondary w-full" id="addtextUndoBtn">Undo Last</button>
-        <button class="btn-primary w-full" id="addtextDownload" style="display:none;">Download PDF</button>
       </div>
-    </div>
+    </section>
 
-    <!-- PAGE NUMBERS OPTIONS -->
-    <div class="tool-options" id="options-pagenums">
-      <p class="tool-desc">Add page numbers to the document.</p>
+    <section class="tool-options" id="options-pagenums">
+      <p class="tool-desc">Stamp page numbers onto the current working document.</p>
       <div class="option-group">
-        <label>Position</label>
+        <label for="pagenumsPosition">Position</label>
         <select id="pagenumsPosition" class="w-full">
           <option value="bottom-center">Bottom Center</option>
           <option value="bottom-right">Bottom Right</option>
@@ -325,11 +111,11 @@ function toolOptionsHTML() {
         </select>
       </div>
       <div class="option-group">
-        <label>Start from</label>
+        <label for="pagenumsStart">Start From</label>
         <input type="number" id="pagenumsStart" value="1" min="1" class="w-full">
       </div>
       <div class="option-group">
-        <label>Format</label>
+        <label for="pagenumsFormat">Format</label>
         <select id="pagenumsFormat" class="w-full">
           <option value="plain">1, 2, 3</option>
           <option value="dash">- 1 -, - 2 -</option>
@@ -337,255 +123,421 @@ function toolOptionsHTML() {
           <option value="of">1 of N, 2 of N</option>
         </select>
       </div>
-      <div class="action-bar flex-col" style="margin-top:20px;">
+      <div class="action-bar flex-col">
         <button class="btn-primary w-full" id="pagenumsBtn" disabled>Apply Numbers</button>
-        <button class="btn-primary w-full" id="pagenumsDownload" style="display:none;">Download PDF</button>
       </div>
-    </div>
+    </section>
 
-    <!-- WATERMARK OPTIONS -->
-    <div class="tool-options" id="options-watermark">
-      <p class="tool-desc">Stamp document with text.</p>
+    <section class="tool-options" id="options-watermark">
+      <p class="tool-desc">Apply a centered diagonal watermark to every page.</p>
       <div class="option-group">
-        <label>Watermark Text</label>
+        <label for="watermarkText">Watermark Text</label>
         <input type="text" id="watermarkText" value="CONFIDENTIAL" class="w-full">
       </div>
       <div class="option-group">
-        <label>Opacity</label>
+        <label for="watermarkOpacity">Opacity</label>
         <select id="watermarkOpacity" class="w-full">
           <option value="0.1">Light (10%)</option>
           <option value="0.2" selected>Medium (20%)</option>
           <option value="0.35">Heavy (35%)</option>
         </select>
       </div>
-      <div class="action-bar flex-col" style="margin-top:20px;">
+      <div class="action-bar flex-col">
         <button class="btn-primary w-full" id="watermarkBtn" disabled>Apply Watermark</button>
-        <button class="btn-primary w-full" id="watermarkDownload" style="display:none;">Download PDF</button>
       </div>
-    </div>
+    </section>
 
-    <!-- ENCRYPT OPTIONS -->
-    <div class="tool-options" id="options-encrypt">
-      <p class="tool-desc">Password protect PDF.</p>
+    <section class="tool-options" id="options-encrypt">
+      <p class="tool-desc">Protect the working PDF with a password.</p>
       <div class="option-group">
-        <label>Password</label>
+        <label for="encryptPassword">Password</label>
         <input type="password" id="encryptPassword" placeholder="Enter password" class="w-full">
       </div>
       <div class="option-group">
-        <label>Confirm Password</label>
+        <label for="encryptPasswordConfirm">Confirm Password</label>
         <input type="password" id="encryptPasswordConfirm" placeholder="Confirm password" class="w-full">
       </div>
-      <div class="action-bar flex-col" style="margin-top:20px;">
+      <div class="action-bar flex-col">
         <button class="btn-primary w-full" id="encryptBtn" disabled>Encrypt PDF</button>
-        <button class="btn-primary w-full" id="encryptDownload" style="display:none;">Download PDF</button>
       </div>
-    </div>
+    </section>
 
-    <!-- EXTRACT TEXT OPTIONS -->
-    <div class="tool-options" id="options-extract">
-      <p class="tool-desc">Copy document text.</p>
-      <textarea id="extractedText" class="w-full" style="min-height:200px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:var(--font-body); font-size:13px; padding:12px; border-radius:var(--radius-sm); resize:vertical; margin-top:12px;" readonly placeholder="Extracted text will appear here..."></textarea>
-      <div class="action-bar flex-col" style="margin-top:20px;">
-        <button class="btn-primary w-full" id="extractBtn" disabled>Extract Now</button>
-        <button class="btn-secondary w-full" id="extractCopyBtn" disabled>Copy to Clipboard</button>
+    <section class="tool-options" id="options-extract">
+      <p class="tool-desc">Extract visible text into the composer view.</p>
+      <div class="action-bar flex-col">
+        <button class="btn-primary w-full" id="extractBtn" disabled>Extract Text</button>
+        <button class="btn-secondary w-full" id="extractCopyBtn" disabled>Copy Text</button>
       </div>
-    </div>
+    </section>
 
-    <!-- PDF TO JPG OPTIONS -->
-    <div class="tool-options" id="options-pdf2jpg">
-      <p class="tool-desc">Convert PDF pages to JPGs.</p>
+    <section class="tool-options" id="options-pdf2jpg">
+      <p class="tool-desc">Export each page as a JPG file.</p>
       <div class="option-group">
-        <label>Quality</label>
+        <label for="pdf2jpgQuality">Quality</label>
         <select id="pdf2jpgQuality" class="w-full">
           <option value="1">Standard (72 DPI)</option>
           <option value="2" selected>High (150 DPI)</option>
           <option value="3">Maximum (216 DPI)</option>
         </select>
       </div>
-      <div class="action-bar flex-col" style="margin-top:20px;">
+      <div class="action-bar flex-col">
         <button class="btn-primary w-full" id="pdf2jpgBtn" disabled>Convert to JPG</button>
-        <div id="pdf2jpgDownloads" style="width:100%; display:flex; flex-direction:column; gap:8px;"></div>
       </div>
-    </div>
+    </section>
+
+    <section class="tool-options" id="options-img2pdf">
+      <p class="tool-desc">Import images, arrange them in the left rail, and create a PDF.</p>
+      <div class="action-bar flex-col">
+        <button class="btn-primary w-full" id="img2pdfBtn" disabled>Create PDF</button>
+        <button class="btn-secondary w-full" id="img2pdfClearBtn">Clear Images</button>
+      </div>
+    </section>
+
+    <section class="tool-options" id="options-html2pdf">
+      <p class="tool-desc">Compose or import HTML, then generate a PDF into the workspace.</p>
+      <div class="action-bar flex-col">
+        <button class="btn-primary w-full" id="html2pdfBtn">Convert to PDF</button>
+      </div>
+    </section>
   `;
 }
 
-/**
- * HTML for Popup modals (Images to PDF, HTML to PDF)
- */
-function popupConvertHTML() {
-  return `
-    <div class="popup-view" id="popup-img2pdf" style="display:none;">
-      <h2>Images to PDF</h2>
-      <p class="mb-4 text-muted">Convert JPG or PNG images into a single PDF.</p>
-      <div class="drop-zone" id="img2pdfDropZone">
-        <input type="file" accept="image/jpeg,image/png,image/webp" multiple id="img2pdfFileInput">
-        <div class="drop-zone-icon">📷</div>
-        <h3>Drop images here</h3>
-        <p>JPG, PNG — add multiple</p>
-      </div>
-      <div class="file-list" id="img2pdfFileList" style="margin-top:16px;"></div>
-      <div class="action-bar" id="img2pdfActions" style="display:none; justify-content:flex-end; margin-top:16px;">
-        <button class="btn-secondary" id="img2pdfClearBtn">Clear All</button>
-        <button class="btn-primary" id="img2pdfBtn">Create PDF</button>
-        <button class="btn-primary" id="img2pdfDownload" style="display:none;">Download PDF</button>
-      </div>
-      <div class="progress-bar mt-2" id="img2pdfProgress" style="display:none;"><div class="progress-bar-fill"></div></div>
-      <div class="result-info mt-2 text-green" id="img2pdfResultInfo"></div>
+export function renderApp() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <header class="site-header" id="siteHeader">
+      <div class="logo" id="logoBtn">pdf<span>kit</span></div>
+      <nav id="mainNav">
+        <button class="active" data-section="workspace">Workspace</button>
+        <button data-section="tools">Tools</button>
+        <button data-section="privacy">Privacy</button>
+      </nav>
+    </header>
+
+    <div id="homeView">
+      <section class="hero" id="section-workspace">
+        <h1>One workspace for every PDF edit.</h1>
+        <p>Import once, switch tools instantly, and keep building on the same working document without bouncing between separate pages.</p>
+        <div class="hero-actions">
+          <button class="btn-primary hero-cta" id="launchWorkspaceBtn">Open Workspace</button>
+        </div>
+      </section>
+
+      <section class="tools-showcase" id="section-tools">
+        <div class="section-label">Workspace Tools</div>
+        <div class="tool-grid">${renderToolCards()}</div>
+      </section>
+
+      <section class="info-card" id="section-privacy">
+        <div class="section-label">Privacy</div>
+        <p>Your files stay in the browser. Every import, conversion, and edit runs locally on your device, and nothing is uploaded to a server.</p>
+      </section>
     </div>
 
-    <div class="popup-view" id="popup-html2pdf" style="display:none;">
-      <h2>HTML to PDF</h2>
-      <p class="mb-4 text-muted">Paste HTML code and convert it to a PDF.</p>
-      <textarea id="htmlInput" style="width:100%;min-height:220px;background:var(--bg-card);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:12px;border-radius:var(--radius);resize:vertical;outline:none;" placeholder="Paste HTML here..."></textarea>
-      <div class="action-bar" style="justify-content:flex-end; margin-top:16px;">
-        <button class="btn-primary" id="html2pdfBtn">Convert to PDF</button>
-        <button class="btn-primary" id="html2pdfDownload" style="display:none;">Download PDF</button>
+    <div id="appView" style="display:none;">
+      <header class="editor-header">
+        <div class="editor-header-left">
+          <button class="back-btn" id="editorBackBtn" data-back>Home</button>
+          <div class="editor-tool-nav">${renderToolNav()}</div>
+        </div>
+        <div class="editor-header-right">
+          <button class="btn-secondary" id="workspaceImportBtn">Import PDF</button>
+          <input type="file" id="workspaceImportInput" hidden>
+          <button class="btn-primary" id="workspaceDownloadBtn" disabled>Download</button>
+        </div>
+      </header>
+
+      <div class="editor-layout">
+        <aside class="editor-sidebar-left">
+          <div class="sidebar-header" id="workspaceSidebarTitle">Sources</div>
+          <div class="sidebar-content" id="workspaceSidebarList"></div>
+        </aside>
+
+        <main class="editor-main" id="editorMain">
+          <div class="workspace-stage" data-view="empty">
+            <div class="workspace-drop-wrap">
+              <label class="drop-zone global-drop-zone" id="globalDropZone">
+                <input type="file" id="globalFileInput" hidden>
+                <div class="drop-zone-icon">PDF</div>
+                <h3 id="workspaceDropTitle">Drop files here</h3>
+                <p id="workspaceDropCopy">or click to browse</p>
+              </label>
+              <div class="workspace-intro" id="workspaceIntro">
+                <div class="workspace-kicker">Unified workspace</div>
+                <h2 id="workspaceHeadline">Import a document to start editing</h2>
+                <p id="workspaceDescription">Tools share the same shell, the same working document, and the same export area.</p>
+              </div>
+            </div>
+            <div id="editorCenterCanvas" style="display:none;"></div>
+          </div>
+        </main>
+
+        <aside class="editor-sidebar-right">
+          <div class="sidebar-header" id="toolOptionsTitle">Options</div>
+          <div class="sidebar-content" id="toolOptionsContainer">${toolOptionsHTML()}</div>
+          <div class="sidebar-footer" id="toolActionContainer">
+            <div class="progress-bar global-progress" id="globalProgress"><div class="progress-bar-fill"></div></div>
+            <div class="result-info" id="globalResultInfo"></div>
+            <div class="workspace-export-list" id="workspaceDownloads"></div>
+          </div>
+        </aside>
       </div>
-      <div class="progress-bar mt-2" id="html2pdfProgress" style="display:none;"><div class="progress-bar-fill"></div></div>
-      <div class="result-info mt-2 text-green" id="html2pdfResultInfo"></div>
     </div>
+
+    <footer id="homeFooter">
+      <p>pdfkit runs locally in your browser. Import once, edit continuously, and download when you are ready.</p>
+    </footer>
   `;
 }
 
-/**
- * Show the home view, hide app view.
- */
 export function showHome() {
   window.location.hash = '';
   document.getElementById('homeView').style.display = 'block';
-  document.querySelector('header').style.display = 'flex';
+  document.getElementById('siteHeader').style.display = 'flex';
   document.getElementById('homeFooter').style.display = 'block';
-  
   document.getElementById('appView').style.display = 'none';
-  window.scrollTo(0, 0);
 }
 
-/**
- * Open a specific tool view in the unified editor.
- */
-export function openTool(tool) {
-  // Popups
-  if (tool === 'img2pdf' || tool === 'html2pdf') {
-    document.getElementById('convertModalOverlay').style.display = 'flex';
-    document.querySelectorAll('.popup-view').forEach(v => v.style.display = 'none');
-    const popup = document.getElementById('popup-' + tool);
-    if (popup) popup.style.display = 'block';
-    
-    // Auto-return hash to previous state to not stay on popup hash
-    if (window.location.hash.startsWith('#app/')) {
-       // We only clear it if we were on home, otherwise stay in editor
-       if (document.getElementById('homeView').style.display === 'block') {
-         window.location.hash = '';
-       }
+export function openTool(tool = DEFAULT_TOOL) {
+  const resolvedTool = getToolDefinition(tool) ? tool : DEFAULT_TOOL;
+  document.getElementById('homeView').style.display = 'none';
+  document.getElementById('siteHeader').style.display = 'none';
+  document.getElementById('homeFooter').style.display = 'none';
+  document.getElementById('appView').style.display = 'flex';
+
+  document.querySelectorAll('.tool-options').forEach((panel) => {
+    panel.style.display = 'none';
+  });
+  document.querySelectorAll('.tool-nav-btn').forEach((button) => {
+    button.classList.toggle('active', button.dataset.tool === resolvedTool);
+  });
+
+  const activePanel = document.getElementById(`options-${resolvedTool}`);
+  if (activePanel) activePanel.style.display = 'block';
+  document.getElementById('toolOptionsTitle').textContent = getToolDefinition(resolvedTool).title;
+  setActiveTool(resolvedTool);
+}
+
+function updateImportControl() {
+  const tool = getToolDefinition(EditorState.activeTool) || getToolDefinition(DEFAULT_TOOL);
+  const input = document.getElementById('workspaceImportInput');
+  const globalInput = document.getElementById('globalFileInput');
+  const button = document.getElementById('workspaceImportBtn');
+  const dropTitle = document.getElementById('workspaceDropTitle');
+
+  button.textContent = tool.importLabel;
+  input.accept = tool.accept;
+  input.multiple = tool.multiple;
+  globalInput.accept = tool.accept;
+  globalInput.multiple = tool.multiple;
+  dropTitle.textContent = `Drop ${tool.label.toLowerCase()} input here`;
+}
+
+function renderSidebarList() {
+  const title = document.getElementById('workspaceSidebarTitle');
+  const list = document.getElementById('workspaceSidebarList');
+  const items = getSidebarItems();
+
+  if (EditorState.activeTool === 'merge') title.textContent = 'Imported PDFs';
+  else if (EditorState.activeTool === 'img2pdf') title.textContent = 'Imported Images';
+  else if (EditorState.activeTool === 'html2pdf') title.textContent = 'Imported HTML';
+  else title.textContent = 'Working Document';
+
+  if (!items.length) {
+    if (EditorState.workingDocument) {
+      const doc = EditorState.workingDocument;
+      list.innerHTML = `
+        <div class="workspace-card">
+          <div class="workspace-card-title">${doc.name}</div>
+          <div class="workspace-card-meta">${formatSize(doc.size)}${doc.pageCount ? ` - ${doc.pageCount} pages` : ''}</div>
+        </div>
+      `;
+      return;
     }
+
+    list.innerHTML = '<p class="sidebar-empty">No imported items yet.</p>';
     return;
   }
 
-  // Hide home elements
-  document.getElementById('homeView').style.display = 'none';
-  document.querySelector('header').style.display = 'none';
-  document.getElementById('homeFooter').style.display = 'none';
-  
-  // Show app view (unified editor)
-  const appView = document.getElementById('appView');
-  appView.style.display = 'flex'; 
-  
-  // Hide all tool options panels and deactivate nav buttons
-  document.querySelectorAll('.tool-options').forEach(v => v.style.display = 'none');
-  document.querySelectorAll('.tool-nav-btn').forEach(btn => btn.classList.remove('active'));
-  
-  // Activate selected tool nav button
-  const activeBtn = document.querySelector(`.tool-nav-btn[data-tool="${tool}"]`);
-  if (activeBtn) activeBtn.classList.add('active');
+  list.innerHTML = items.map((item, index) => `
+    <div class="file-item" draggable="${EditorState.activeTool === 'merge' || EditorState.activeTool === 'img2pdf'}" data-kind="${item.kind}" data-index="${index}" data-id="${item.id}">
+      <span class="file-icon">${item.kind.toUpperCase()}</span>
+      <div class="file-stack">
+        <span class="file-name">${item.name}</span>
+        <span class="file-size">${formatSize(item.size || 0)}</span>
+      </div>
+      <button class="file-remove" data-remove-id="${item.id}">x</button>
+    </div>
+  `).join('');
 
-  // Show selected tool's right panel
-  const optionsPanel = document.getElementById('options-' + tool);
-  if (optionsPanel) {
-    optionsPanel.style.display = 'block';
-    // Update title
-    document.getElementById('toolOptionsTitle').textContent = activeBtn ? activeBtn.getAttribute('title') : 'Options';
-  }
-  
-  // Update state (import EditorState dynamically or emit an event for it)
-  // Tool modules will listen to changes to know what interface to render in the center/left
-  import('./EditorState.js').then(module => {
-     module.setActiveTool(tool);
+  list.querySelectorAll('[data-remove-id]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (EditorState.activeTool === 'merge') {
+        const removeIndex = items.findIndex((entry) => entry.id === button.dataset.removeId);
+        removeFile(removeIndex);
+      } else {
+        removeSourceItem(button.dataset.removeId);
+      }
+    });
+  });
+
+  list.querySelectorAll('.file-item[draggable="true"]').forEach((item) => {
+    item.addEventListener('dragstart', (event) => {
+      event.dataTransfer.setData('text/plain', item.dataset.index);
+      item.classList.add('dragging');
+    });
+    item.addEventListener('dragend', () => item.classList.remove('dragging'));
+    item.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', (event) => {
+      event.preventDefault();
+      item.classList.remove('drag-over');
+      const fromIndex = parseInt(event.dataTransfer.getData('text/plain'), 10);
+      const toIndex = parseInt(item.dataset.index, 10);
+      reorderSourceItems(fromIndex, toIndex, item.dataset.kind);
+    });
   });
 }
 
-/**
- * Bind navigation event listeners. Call after renderApp().
- */
-export function initNav() {
-  // Logo → home
-  document.getElementById('logoBtn').addEventListener('click', showHome);
+function updateWorkspaceStage() {
+  const stage = document.querySelector('.workspace-stage');
+  const intro = document.getElementById('workspaceIntro');
+  const drop = document.getElementById('globalDropZone');
+  const canvas = document.getElementById('editorCenterCanvas');
+  const tool = getToolDefinition(EditorState.activeTool);
+  const hasCanvasContent = canvas.innerHTML.trim().length > 0;
+  const hasPrimaryContent = Boolean(EditorState.workingDocument) || getSidebarItems().length > 0;
 
-  // Nav buttons → scroll to sections
-  document.querySelectorAll('header nav button').forEach(btn => {
-    btn.addEventListener('click', function () {
-      if (window.location.hash.startsWith('#app/')) {
-        showHome();
-      }
-      const section = this.dataset.section;
-      document.querySelectorAll('header nav button').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      const el = document.getElementById('section-' + section);
-      if (el) {
-        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-      }
-    });
-  });
+  stage.dataset.view = EditorState.workspaceView;
+  document.getElementById('workspaceHeadline').textContent = EditorState.workingDocument
+    ? `${tool.title} in a unified workspace`
+    : `Import input for ${tool.title}`;
 
-  // Tool cards → open tool via hash
-  document.querySelectorAll('.tool-card[data-tool]').forEach(card => {
-    card.addEventListener('click', () => {
-      window.location.hash = '#app/' + card.dataset.tool;
-    });
-  });
-
-  // Editor Nav buttons
-  document.querySelectorAll('.tool-nav-btn[data-tool]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      window.location.hash = '#app/' + btn.dataset.tool;
-    });
-  });
-
-  // Convert popup buttons
-  document.querySelectorAll('.convert-popup-btn[data-popup]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      openTool(btn.dataset.popup);
-    });
-  });
-
-  // Close popup modal
-  const closeBtn = document.getElementById('convertModalClose');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      document.getElementById('convertModalOverlay').style.display = 'none';
-      if (window.location.hash.startsWith('#app/img2pdf') || window.location.hash.startsWith('#app/html2pdf')) {
-        window.history.back(); // Go back to avoid staying on popup hash when closed
-      }
-    });
+  if (!hasPrimaryContent && !hasCanvasContent) {
+    intro.style.display = 'block';
+    drop.style.display = 'flex';
+    canvas.style.display = 'none';
+    return;
   }
 
-  // Back buttons
-  document.querySelectorAll('[data-back]').forEach(btn => {
-    btn.addEventListener('click', showHome);
+  intro.style.display = 'none';
+  drop.style.display = tool.id === 'merge' || tool.id === 'img2pdf' || tool.id === 'html2pdf' ? 'flex' : 'none';
+  canvas.style.display = 'block';
+}
+
+function updateExportArea() {
+  const button = document.getElementById('workspaceDownloadBtn');
+  const info = document.getElementById('globalResultInfo');
+  const downloads = document.getElementById('workspaceDownloads');
+  const result = EditorState.result;
+
+  downloads.innerHTML = '';
+  info.textContent = '';
+
+  if (!result) {
+    button.disabled = true;
+    button.onclick = null;
+    return;
+  }
+
+  info.textContent = result.label || '';
+
+  if (result.kind === 'single' && result.blob) {
+    button.disabled = false;
+    button.textContent = 'Download';
+    button.onclick = () => downloadBlob(result.blob, result.filename || 'download');
+    return;
+  }
+
+  if (result.kind === 'multiple') {
+    button.disabled = result.downloads.length === 0;
+    button.textContent = result.primaryLabel || 'Download All';
+    button.onclick = () => {
+      result.downloads.forEach((entry, index) => {
+        setTimeout(() => downloadBlob(entry.blob, entry.filename), index * 120);
+      });
+    };
+    downloads.innerHTML = result.downloads.map((entry) => `
+      <button class="btn-secondary w-full workspace-download-item" data-download="${entry.filename}">
+        ${entry.label}
+      </button>
+    `).join('');
+    downloads.querySelectorAll('[data-download]').forEach((downloadButton, index) => {
+      downloadButton.addEventListener('click', () => {
+        const entry = result.downloads[index];
+        downloadBlob(entry.blob, entry.filename);
+      });
+    });
+    return;
+  }
+
+  button.disabled = true;
+  button.onclick = null;
+}
+
+export function initWorkspaceChrome() {
+  document.getElementById('workspaceImportBtn').addEventListener('click', () => {
+    document.getElementById('workspaceImportInput').click();
   });
 
-  // Hash Router
+  document.getElementById('globalDropZone').addEventListener('click', () => {
+    document.getElementById('globalFileInput').click();
+  });
+
+  document.getElementById('mergeClearBtn').addEventListener('click', () => clearSourceItems('pdf'));
+  document.getElementById('img2pdfClearBtn').addEventListener('click', () => clearSourceItems('image'));
+
+  const refresh = () => {
+    updateImportControl();
+    renderSidebarList();
+    updateWorkspaceStage();
+    updateExportArea();
+  };
+
+  EditorEvents.on('toolChanged', refresh);
+  EditorEvents.on('filesChanged', refresh);
+  EditorEvents.on('sourceItemsChanged', refresh);
+  EditorEvents.on('workingDocumentChanged', refresh);
+  EditorEvents.on('resultChanged', refresh);
+  EditorEvents.on('workspaceViewChanged', refresh);
+
+  refresh();
+}
+
+export function initNav() {
+  document.getElementById('logoBtn').addEventListener('click', showHome);
+  document.getElementById('launchWorkspaceBtn').addEventListener('click', () => {
+    window.location.hash = `#app/${DEFAULT_TOOL}`;
+  });
+
+  document.querySelectorAll('#mainNav button').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('#mainNav button').forEach((entry) => entry.classList.remove('active'));
+      button.classList.add('active');
+      const target = document.getElementById(`section-${button.dataset.section}`);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  document.querySelectorAll('[data-tool]').forEach((trigger) => {
+    trigger.addEventListener('click', () => {
+      window.location.hash = `#app/${trigger.dataset.tool}`;
+    });
+  });
+
+  document.querySelectorAll('[data-back]').forEach((button) => button.addEventListener('click', showHome));
+
   function handleHashChange() {
-    const hash = window.location.hash;
-    if (hash.startsWith('#app/')) {
-      const tool = hash.replace('#app/', '');
-      openTool(tool);
+    if (window.location.hash.startsWith('#app/')) {
+      openTool(window.location.hash.replace('#app/', ''));
     } else {
       showHome();
     }
   }
 
   window.addEventListener('hashchange', handleHashChange);
-  // Initial check
   handleHashChange();
 }

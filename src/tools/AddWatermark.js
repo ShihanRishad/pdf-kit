@@ -1,80 +1,72 @@
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
-import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
-import { EditorState, EditorEvents } from '../core/EditorState.js';
+import { formatSize, setProgress, hideProgress, showError } from '../core/Utils.js';
+import { EditorEvents, EditorState, commitPdfResult } from '../core/EditorState.js';
+
+function updateUI() {
+  if (EditorState.activeTool !== 'watermark') return;
+  const button = document.getElementById('watermarkBtn');
+  const canvas = document.getElementById('editorCenterCanvas');
+  const doc = EditorState.workingDocument;
+  button.disabled = !doc;
+  canvas.innerHTML = `
+    <div class="workspace-placeholder">
+      <div class="workspace-placeholder-kicker">Watermark</div>
+      <h3>${doc ? 'Stamp the active PDF with a watermark' : 'Import a PDF to add a watermark'}</h3>
+      <p>${doc ? `${doc.name} - ${formatSize(doc.size)}` : 'The output will replace the current working document and stay available in the shared export area.'}</p>
+    </div>
+  `;
+  canvas.style.display = 'block';
+}
 
 async function doWatermark() {
-  if (EditorState.activeTool !== 'watermark' || EditorState.files.length === 0) return;
-  const watermarkFile = EditorState.files[0];
-  
+  const doc = EditorState.workingDocument;
+  if (EditorState.activeTool !== 'watermark' || !doc) return;
+
+  const button = document.getElementById('watermarkBtn');
+  button.textContent = 'Applying...';
   setProgress('globalProgress', 20);
-  document.getElementById('watermarkBtn').textContent = 'Processing...';
 
   try {
-    const bytes = await watermarkFile.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    const pdfDoc = await PDFDocument.load(doc.bytes, { ignoreEncryption: true });
     const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const pages = pdfDoc.getPages();
     const text = document.getElementById('watermarkText').value || 'WATERMARK';
     const opacity = parseFloat(document.getElementById('watermarkOpacity').value);
 
-    pages.forEach(page => {
+    pages.forEach((page) => {
       const { width, height } = page.getSize();
       const fontSize = Math.min(width, height) * 0.12;
       const textWidth = font.widthOfTextAtSize(text, fontSize);
       page.drawText(text, {
         x: (width - textWidth * 0.7) / 2,
         y: height / 2 - fontSize / 2,
-        size: fontSize, font,
+        size: fontSize,
+        font,
         color: rgb(0.5, 0.5, 0.5),
         opacity,
         rotate: degrees(45),
       });
     });
 
-    const pdfBytes = await pdfDoc.save();
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    setProgress('globalProgress', 100);
-    setTimeout(() => hideProgress('globalProgress'), 500);
-    
-    const res = document.getElementById('globalResultInfo');
-    res.textContent = `"${text}" added to ${pages.length} pages — ${formatSize(pdfBytes.length)}`;
-    res.style.display = 'block';
-
-    const downloadBtn = document.getElementById('watermarkDownload');
-    downloadBtn.style.display = 'block';
-    downloadBtn.onclick = () => downloadBlob(blob, 'watermarked_' + watermarkFile.name);
-    
-    document.getElementById('watermarkBtn').textContent = 'Apply Watermark';
-  } catch (err) {
-    showError('Error: ' + err.message);
+    const bytes = await pdfDoc.save();
+    await commitPdfResult(bytes, {
+      filename: `watermarked_${doc.name}`,
+      label: `"${text}" applied to ${pages.length} pages`,
+      pageCount: pages.length,
+      source: 'watermark',
+    });
+  } catch (error) {
+    showError(`Error applying watermark: ${error.message}`);
+  } finally {
     hideProgress('globalProgress');
-    document.getElementById('watermarkBtn').textContent = 'Apply Watermark';
-  }
-}
-
-function updateUI() {
-  const btn = document.getElementById('watermarkBtn');
-  if (btn) btn.disabled = EditorState.files.length === 0;
-  
-  if (EditorState.activeTool === 'watermark' && EditorState.files.length > 0) {
-      document.getElementById('editorCenterCanvas').innerHTML = `
-        <div style="display:flex; height:100%; align-items:center; justify-content:center; flex-direction:column; color:var(--text-muted);">
-           <div style="font-size:48px; margin-bottom:16px;">💧</div>
-           <h3>Ready to Add Watermark</h3>
-           <p>${EditorState.files[0].name} (${formatSize(EditorState.files[0].size)})</p>
-        </div>
-      `;
+    button.textContent = 'Apply Watermark';
   }
 }
 
 export function init() {
   document.getElementById('watermarkBtn').addEventListener('click', doWatermark);
-  
-  EditorEvents.on('filesChanged', () => {
-    if (EditorState.activeTool === 'watermark') updateUI();
-  });
-  
   EditorEvents.on('toolChanged', (tool) => {
     if (tool === 'watermark') updateUI();
   });
+  EditorEvents.on('workingDocumentChanged', updateUI);
 }

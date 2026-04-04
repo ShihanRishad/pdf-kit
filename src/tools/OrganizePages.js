@@ -1,226 +1,104 @@
 import { PDFDocument, degrees } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
-import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
-import { EditorState, EditorEvents } from '../core/EditorState.js';
-import { getPdfBytes, getPdfJsDocument } from '../core/PdfCache.js';
+import { formatSize, setProgress, hideProgress, showError } from '../core/Utils.js';
+import { EditorEvents, EditorState, commitPdfResult } from '../core/EditorState.js';
 
 let organizePdfBytes = null;
 let organizePages = [];
 let organizeSelected = new Set();
-let currentFile = null;
-let previewObserver = null;
-let renderRunId = 0;
-let queuedPages = new Set();
-let renderedPages = new Set();
-let activeRenders = 0;
-let pendingPreviewQueue = [];
-
-const THUMBNAIL_SCALE = 0.35;
-const MAX_CONCURRENT_RENDERS = 2;
-
-function disconnectPreviewObserver() {
-  if (previewObserver) {
-    previewObserver.disconnect();
-    previewObserver = null;
-  }
-}
-
-function resetPreviewRenderer() {
-  renderRunId += 1;
-  queuedPages.clear();
-  renderedPages.clear();
-  activeRenders = 0;
-  pendingPreviewQueue = [];
-  disconnectPreviewObserver();
-}
-
-function yieldToBrowser() {
-  return new Promise(resolve => requestAnimationFrame(() => resolve()));
-}
-
-function toggleSelectedPage(div, pageIndex) {
-  if (organizeSelected.has(pageIndex)) {
-    organizeSelected.delete(pageIndex);
-    div.classList.remove('selected');
-  } else {
-    organizeSelected.add(pageIndex);
-    div.classList.add('selected');
-  }
-}
-
-function reorderPages(fromIdx, toIdx) {
-  if (fromIdx === toIdx) return;
-
-  const fromPos = organizePages.findIndex(p => p.index === fromIdx);
-  const toPos = organizePages.findIndex(p => p.index === toIdx);
-  if (fromPos < 0 || toPos < 0) return;
-
-  const [moved] = organizePages.splice(fromPos, 1);
-  organizePages.splice(toPos, 0, moved);
-  reRenderPreviews();
-}
-
-function bindPreviewInteractions(div, pageIndex) {
-  div.addEventListener('click', () => toggleSelectedPage(div, pageIndex));
-  div.addEventListener('dragstart', e => {
-    e.dataTransfer.setData('text/plain', div.dataset.idx);
-    div.classList.add('dragging');
-  });
-  div.addEventListener('dragend', () => div.classList.remove('dragging'));
-  div.addEventListener('dragover', e => {
-    e.preventDefault();
-    div.classList.add('drag-over');
-  });
-  div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
-  div.addEventListener('drop', e => {
-    e.preventDefault();
-    div.classList.remove('drag-over');
-    reorderPages(parseInt(e.dataTransfer.getData('text/plain'), 10), parseInt(div.dataset.idx, 10));
-  });
-}
-
-async function renderPreviewCanvas(previewEl, pageIndex, localRunId) {
-  try {
-    const pdfDoc = await getPdfJsDocument(currentFile, pdfjsLib);
-    if (!pdfDoc || localRunId !== renderRunId || !previewEl.isConnected) return;
-
-    const page = await pdfDoc.getPage(pageIndex + 1);
-    if (localRunId !== renderRunId || !previewEl.isConnected) return;
-
-    const viewport = page.getViewport({ scale: THUMBNAIL_SCALE });
-    const canvas = previewEl.querySelector('canvas');
-    const context = canvas.getContext('2d', { alpha: false });
-
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    await page.render({ canvasContext: context, viewport }).promise;
-
-    if (localRunId !== renderRunId || !previewEl.isConnected) return;
-    previewEl.classList.remove('loading');
-    renderedPages.add(pageIndex);
-    if (previewObserver) previewObserver.unobserve(previewEl);
-  } finally {
-    queuedPages.delete(pageIndex);
-    activeRenders = Math.max(0, activeRenders - 1);
-    await yieldToBrowser();
-    drainPreviewQueue(localRunId);
-  }
-}
-
-function drainPreviewQueue(localRunId) {
-  while (activeRenders < MAX_CONCURRENT_RENDERS && pendingPreviewQueue.length > 0) {
-    const nextItem = pendingPreviewQueue.shift();
-    if (!nextItem) return;
-    if (!nextItem.previewEl.isConnected || renderedPages.has(nextItem.pageIndex)) {
-      queuedPages.delete(nextItem.pageIndex);
-      continue;
-    }
-
-    activeRenders += 1;
-    renderPreviewCanvas(nextItem.previewEl, nextItem.pageIndex, localRunId);
-  }
-}
-
-function queuePreviewRender(previewEl, pageIndex, localRunId) {
-  if (renderedPages.has(pageIndex) || queuedPages.has(pageIndex)) {
-    return;
-  }
-
-  queuedPages.add(pageIndex);
-  pendingPreviewQueue.push({ previewEl, pageIndex });
-  drainPreviewQueue(localRunId);
-}
-
-function createPreviewElement(pageIndex) {
-  const div = document.createElement('div');
-  div.className = 'page-preview loading';
-  div.dataset.idx = pageIndex;
-  div.draggable = true;
-  div.innerHTML = `<canvas></canvas><div class="page-check">✓</div><span class="page-num">${pageIndex + 1}</span>`;
-  bindPreviewInteractions(div, pageIndex);
-  return div;
-}
-
-function startPreviewObserver(previewsContainer) {
-  const localRunId = renderRunId;
-
-  previewObserver = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      const previewEl = entry.target;
-      const pageIndex = parseInt(previewEl.dataset.idx, 10);
-      queuePreviewRender(previewEl, pageIndex, localRunId);
-    });
-  }, {
-    root: document.getElementById('editorCenterCanvas'),
-    rootMargin: '300px 0px',
-  });
-
-  previewsContainer.querySelectorAll('.page-preview').forEach((previewEl) => {
-    previewObserver.observe(previewEl);
-  });
-}
+let currentDocId = null;
 
 async function renderThumbnails() {
-  if (EditorState.activeTool !== 'organize' || EditorState.files.length === 0) return;
-  const file = EditorState.files[0];
-  const hasOrganizePreviews = Boolean(document.getElementById('organizePreviews'));
-  if (currentFile === file && hasOrganizePreviews) return;
-  currentFile = file;
-  resetPreviewRenderer();
-
-  const container = document.getElementById('editorCenterCanvas');
-  container.innerHTML = '<div style="padding: 20px;"><div id="organizePreviews" class="page-previews"></div></div>';
-  const previewsContainer = document.getElementById('organizePreviews');
-
-  organizePdfBytes = await getPdfBytes(file);
-  const pdfDoc = await getPdfJsDocument(file, pdfjsLib);
+  if (EditorState.activeTool !== 'organize' || !EditorState.workingDocument) return;
+  const doc = EditorState.workingDocument;
+  if (currentDocId === doc.id && document.getElementById('organizePreviews')) return;
+  currentDocId = doc.id;
+  organizePdfBytes = doc.bytes.slice(0);
   organizePages = [];
   organizeSelected.clear();
 
-  const fragment = document.createDocumentFragment();
-  for (let i = 0; i < pdfDoc.numPages; i++) {
-    organizePages.push({ index: i, rotation: 0 });
-    fragment.appendChild(createPreviewElement(i));
-  }
-  previewsContainer.appendChild(fragment);
+  const container = document.getElementById('editorCenterCanvas');
+  container.innerHTML = '<div class="canvas-scroll"><div id="organizePreviews" class="page-previews"></div></div>';
+  container.style.display = 'block';
+  const previews = document.getElementById('organizePreviews');
+  const pdfDoc = await pdfjsLib.getDocument({ data: organizePdfBytes.slice(0) }).promise;
 
-  startPreviewObserver(previewsContainer);
+  for (let index = 0; index < pdfDoc.numPages; index += 1) {
+    organizePages.push({ index, rotation: 0 });
+    const page = await pdfDoc.getPage(index + 1);
+    const viewport = page.getViewport({ scale: 0.35 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+    const preview = document.createElement('div');
+    preview.className = 'page-preview';
+    preview.dataset.idx = String(index);
+    preview.draggable = true;
+    preview.innerHTML = `<div class="page-check">OK</div><span class="page-num">${index + 1}</span>`;
+    preview.insertBefore(canvas, preview.firstChild);
+    preview.addEventListener('click', () => {
+      if (organizeSelected.has(index)) {
+        organizeSelected.delete(index);
+        preview.classList.remove('selected');
+      } else {
+        organizeSelected.add(index);
+        preview.classList.add('selected');
+      }
+    });
+    preview.addEventListener('dragstart', (event) => {
+      event.dataTransfer.setData('text/plain', preview.dataset.idx);
+      preview.classList.add('dragging');
+    });
+    preview.addEventListener('dragend', () => preview.classList.remove('dragging'));
+    preview.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      preview.classList.add('drag-over');
+    });
+    preview.addEventListener('dragleave', () => preview.classList.remove('drag-over'));
+    preview.addEventListener('drop', (event) => {
+      event.preventDefault();
+      preview.classList.remove('drag-over');
+      const fromIdx = parseInt(event.dataTransfer.getData('text/plain'), 10);
+      const toIdx = parseInt(preview.dataset.idx, 10);
+      const fromPos = organizePages.findIndex((pageInfo) => pageInfo.index === fromIdx);
+      const toPos = organizePages.findIndex((pageInfo) => pageInfo.index === toIdx);
+      if (fromPos < 0 || toPos < 0) return;
+      const [moved] = organizePages.splice(fromPos, 1);
+      organizePages.splice(toPos, 0, moved);
+      reRenderPreviews();
+    });
+    previews.appendChild(preview);
+  }
+
   document.getElementById('organizeBtn').disabled = false;
 }
 
 function reRenderPreviews() {
   const container = document.getElementById('organizePreviews');
   if (!container) return;
-
-  const divs = Array.from(container.querySelectorAll('.page-preview'));
-  const divMap = {};
-  divs.forEach(d => {
-    divMap[d.dataset.idx] = d;
+  const nodes = {};
+  container.querySelectorAll('.page-preview').forEach((preview) => {
+    nodes[preview.dataset.idx] = preview;
   });
 
   organizePages.forEach((pageInfo, position) => {
-    const previewEl = divMap[pageInfo.index];
-    if (!previewEl) return;
-
-    previewEl.querySelector('.page-num').textContent = position + 1;
-    previewEl.classList.toggle('selected', organizeSelected.has(pageInfo.index));
-    container.appendChild(previewEl);
+    const preview = nodes[pageInfo.index];
+    if (!preview) return;
+    preview.querySelector('.page-num').textContent = position + 1;
+    preview.classList.toggle('selected', organizeSelected.has(pageInfo.index));
+    preview.querySelector('canvas').style.transform = `rotate(${pageInfo.rotation}deg)`;
+    container.appendChild(preview);
   });
 }
 
-function rotateSelected(deg) {
-  organizeSelected.forEach(idx => {
-    const page = organizePages.find(p => p.index === idx);
-    if (page) page.rotation = (page.rotation + deg) % 360;
+function rotateSelected(degreesDelta) {
+  organizeSelected.forEach((index) => {
+    const page = organizePages.find((pageInfo) => pageInfo.index === index);
+    if (page) page.rotation = (page.rotation + degreesDelta) % 360;
   });
-
-  document.querySelectorAll('#organizePreviews .page-preview').forEach(div => {
-    const idx = parseInt(div.dataset.idx, 10);
-    const page = organizePages.find(p => p.index === idx);
-    const canvas = div.querySelector('canvas');
-    if (page && canvas) canvas.style.transform = `rotate(${page.rotation}deg)`;
-  });
+  reRenderPreviews();
 }
 
 function deleteSelected() {
@@ -228,51 +106,44 @@ function deleteSelected() {
     showError("Can't delete all pages.");
     return;
   }
-
-  organizePages = organizePages.filter(p => !organizeSelected.has(p.index));
+  organizePages = organizePages.filter((pageInfo) => !organizeSelected.has(pageInfo.index));
   organizeSelected.clear();
-  document.querySelectorAll('#organizePreviews .page-preview').forEach(div => {
-    const idx = parseInt(div.dataset.idx, 10);
-    if (!organizePages.find(p => p.index === idx)) div.remove();
+  document.querySelectorAll('#organizePreviews .page-preview').forEach((preview) => {
+    const pageIndex = parseInt(preview.dataset.idx, 10);
+    if (!organizePages.find((pageInfo) => pageInfo.index === pageIndex)) preview.remove();
   });
   reRenderPreviews();
 }
 
 async function doOrganize() {
   if (EditorState.activeTool !== 'organize' || !organizePdfBytes) return;
+  const button = document.getElementById('organizeBtn');
+  button.textContent = 'Applying...';
   setProgress('globalProgress', 10);
-  document.getElementById('organizeBtn').textContent = 'Processing...';
 
   try {
     const srcDoc = await PDFDocument.load(organizePdfBytes, { ignoreEncryption: true });
-    const newDoc = await PDFDocument.create();
-
-    for (let i = 0; i < organizePages.length; i++) {
-      const { index, rotation } = organizePages[i];
-      const [page] = await newDoc.copyPages(srcDoc, [index]);
+    const nextDoc = await PDFDocument.create();
+    for (let index = 0; index < organizePages.length; index += 1) {
+      const { index: pageIndex, rotation } = organizePages[index];
+      const [page] = await nextDoc.copyPages(srcDoc, [pageIndex]);
       if (rotation) page.setRotation(degrees(rotation));
-      newDoc.addPage(page);
-      setProgress('globalProgress', 10 + (80 * (i + 1) / organizePages.length));
+      nextDoc.addPage(page);
+      setProgress('globalProgress', 10 + (80 * (index + 1) / organizePages.length));
     }
 
-    const pdfBytes = await newDoc.save();
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    setProgress('globalProgress', 100);
-    setTimeout(() => hideProgress('globalProgress'), 500);
-
-    const res = document.getElementById('globalResultInfo');
-    res.textContent = `${organizePages.length} pages - ${formatSize(pdfBytes.length)}`;
-    res.style.display = 'block';
-
-    const downloadBtn = document.getElementById('organizeDownload');
-    downloadBtn.style.display = 'block';
-    downloadBtn.onclick = () => downloadBlob(blob, 'organized.pdf');
-
-    document.getElementById('organizeBtn').textContent = 'Save Changes';
-  } catch (err) {
-    showError('Error: ' + err.message);
+    const bytes = await nextDoc.save();
+    await commitPdfResult(bytes, {
+      filename: `organized_${EditorState.workingDocument.name}`,
+      label: `${organizePages.length} pages reorganized`,
+      pageCount: organizePages.length,
+      source: 'organize',
+    });
+  } catch (error) {
+    showError(`Error organizing pages: ${error.message}`);
+  } finally {
     hideProgress('globalProgress');
-    document.getElementById('organizeBtn').textContent = 'Save Changes';
+    button.textContent = 'Apply Changes';
   }
 }
 
@@ -282,21 +153,14 @@ export function init() {
   document.getElementById('organizeDelete').addEventListener('click', deleteSelected);
   document.getElementById('organizeBtn').addEventListener('click', doOrganize);
 
-  EditorEvents.on('filesChanged', () => {
-    if (EditorState.activeTool === 'organize') {
-      if (EditorState.files.length === 0) {
-        document.getElementById('organizeBtn').disabled = true;
-        document.getElementById('editorCenterCanvas').innerHTML = '';
-        resetPreviewRenderer();
-        currentFile = null;
-        organizePdfBytes = null;
-      } else {
-        renderThumbnails();
-      }
-    }
-  });
-
   EditorEvents.on('toolChanged', (tool) => {
     if (tool === 'organize') renderThumbnails();
+  });
+  EditorEvents.on('workingDocumentChanged', () => {
+    if (EditorState.activeTool === 'organize') {
+      document.getElementById('organizeBtn').disabled = !EditorState.workingDocument;
+      currentDocId = null;
+      renderThumbnails();
+    }
   });
 }

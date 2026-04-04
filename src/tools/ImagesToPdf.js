@@ -1,79 +1,64 @@
 import { PDFDocument } from 'pdf-lib';
-import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
+import { formatSize, setProgress, hideProgress, showError } from '../core/Utils.js';
+import { EditorEvents, commitPdfResult, EditorState, getSourceItemsByKind } from '../core/EditorState.js';
 
-let img2pdfFiles = [];
-
-function renderList() {
-  const list = document.getElementById('img2pdfFileList');
-  list.innerHTML = '';
-  img2pdfFiles.forEach((f, i) => {
-    const item = document.createElement('div');
-    item.className = 'file-item';
-    const icon = document.createElement('span');
-    icon.className = 'file-icon';
-    icon.textContent = '🖼️';
-    const name = document.createElement('span');
-    name.className = 'file-name';
-    name.textContent = f.name;
-    const size = document.createElement('span');
-    size.className = 'file-size';
-    size.textContent = formatSize(f.size);
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'file-remove';
-    removeBtn.dataset.remove = i;
-    removeBtn.textContent = '×';
-    item.append(icon, name, size, removeBtn);
-    list.appendChild(item);
-  });
-  list.querySelectorAll('[data-remove]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      img2pdfFiles.splice(parseInt(btn.dataset.remove), 1);
-      renderList();
-    });
-  });
-  document.getElementById('img2pdfActions').style.display = img2pdfFiles.length > 0 ? 'flex' : 'none';
+function renderComposer() {
+  if (EditorState.activeTool !== 'img2pdf') return;
+  const images = getSourceItemsByKind('image');
+  const canvas = document.getElementById('editorCenterCanvas');
+  document.getElementById('img2pdfBtn').disabled = images.length === 0;
+  canvas.innerHTML = `
+    <div class="composer-surface">
+      <div class="composer-header">
+        <div class="workspace-placeholder-kicker">Images to PDF</div>
+        <h3>${images.length ? `${images.length} image${images.length === 1 ? '' : 's'} in this workspace` : 'Import JPG, PNG, or WebP files'}</h3>
+        <p>${images.length ? 'Use the shared import button or drop zone to add more images. Drag items in the left rail to reorder pages.' : 'The created PDF becomes the active working document so you can continue with organize, watermark, numbering, and more.'}</p>
+      </div>
+      <div class="image-gallery">
+        ${images.map((item) => `<div class="image-chip">${item.name}<span>${formatSize(item.size)}</span></div>`).join('')}
+      </div>
+    </div>
+  `;
+  canvas.style.display = 'block';
 }
 
 async function doConvert() {
-  if (img2pdfFiles.length === 0) return;
-  setProgress('img2pdfProgress', 5);
+  const images = getSourceItemsByKind('image');
+  if (images.length === 0) return;
+  setProgress('globalProgress', 5);
+
   try {
     const pdfDoc = await PDFDocument.create();
-    for (let i = 0; i < img2pdfFiles.length; i++) {
-      const f = img2pdfFiles[i];
-      const bytes = await f.arrayBuffer();
-      const image = f.type === 'image/png'
+
+    for (let index = 0; index < images.length; index += 1) {
+      const file = images[index].file;
+      const bytes = await file.arrayBuffer();
+      const image = file.type === 'image/png'
         ? await pdfDoc.embedPng(bytes)
         : await pdfDoc.embedJpg(bytes);
       const page = pdfDoc.addPage([image.width, image.height]);
       page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
-      setProgress('img2pdfProgress', 5 + (85 * (i + 1) / img2pdfFiles.length));
+      setProgress('globalProgress', 10 + (80 * (index + 1) / images.length));
     }
-    const pdfBytes = await pdfDoc.save();
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    setProgress('img2pdfProgress', 100);
-    setTimeout(() => hideProgress('img2pdfProgress'), 500);
 
-    document.getElementById('img2pdfResultInfo').textContent = `${img2pdfFiles.length} image(s) → PDF (${formatSize(pdfBytes.length)})`;
-    document.getElementById('img2pdfDownload').onclick = () => downloadBlob(blob, 'images.pdf');
-    document.getElementById('img2pdfResult').classList.add('active');
-  } catch (err) {
-    showError('Error creating PDF: ' + err.message);
-    hideProgress('img2pdfProgress');
+    const pdfBytes = await pdfDoc.save();
+    await commitPdfResult(pdfBytes, {
+      filename: 'images.pdf',
+      label: `${images.length} image${images.length === 1 ? '' : 's'} converted into a PDF`,
+      pageCount: pdfDoc.getPageCount(),
+      source: 'img2pdf',
+    });
+  } catch (error) {
+    showError(`Error creating PDF: ${error.message}`);
+  } finally {
+    hideProgress('globalProgress');
   }
 }
 
 export function init() {
-  document.getElementById('img2pdfFileInput').addEventListener('change', function () {
-    Array.from(this.files).forEach(f => {
-      if (f.type.startsWith('image/')) img2pdfFiles.push(f);
-    });
-    renderList();
-  });
   document.getElementById('img2pdfBtn').addEventListener('click', doConvert);
-  document.getElementById('img2pdfClearBtn').addEventListener('click', () => {
-    img2pdfFiles = [];
-    renderList();
-    document.getElementById('img2pdfResult').classList.remove('active');
+  EditorEvents.on('toolChanged', (tool) => {
+    if (tool === 'img2pdf') renderComposer();
   });
+  EditorEvents.on('sourceItemsChanged', renderComposer);
 }

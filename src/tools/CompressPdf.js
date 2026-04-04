@@ -1,63 +1,53 @@
 import { PDFDocument } from 'pdf-lib';
-import { formatSize, downloadBlob, setProgress, hideProgress, showError } from '../core/Utils.js';
-import { EditorState, EditorEvents } from '../core/EditorState.js';
-
-async function doCompress() {
-  if (EditorState.activeTool !== 'compress' || EditorState.files.length === 0) return;
-  const compressFile = EditorState.files[0];
-  
-  setProgress('globalProgress', 20);
-  document.getElementById('compressBtn').textContent = 'Compressing...';
-  
-  try {
-    const bytes = await compressFile.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
-    setProgress('globalProgress', 60);
-    const compressedBytes = await pdfDoc.save({ useObjectStreams: true, addDefaultPage: false });
-    setProgress('globalProgress', 100);
-    setTimeout(() => hideProgress('globalProgress'), 500);
-
-    const blob = new Blob([compressedBytes], { type: 'application/pdf' });
-    const pctSaved = Math.max(0, ((1 - compressedBytes.length / compressFile.size) * 100)).toFixed(1);
-    
-    document.getElementById('compressBtn').textContent = 'Compress PDF';
-    document.getElementById('compressDownload').style.display = 'block';
-    document.getElementById('compressDownload').onclick = () => downloadBlob(blob, 'compressed_' + compressFile.name);
-    
-    const res = document.getElementById('globalResultInfo');
-    res.textContent = `${formatSize(compressFile.size)} → ${formatSize(compressedBytes.length)} (${pctSaved}% reduced)`;
-    res.style.display = 'block';
-  } catch (err) {
-    showError('Error compressing: ' + err.message);
-    hideProgress('globalProgress');
-    document.getElementById('compressBtn').textContent = 'Compress PDF';
-  }
-}
+import { formatSize, setProgress, hideProgress, showError } from '../core/Utils.js';
+import { EditorEvents, EditorState, commitPdfResult } from '../core/EditorState.js';
 
 function updateUI() {
-  const btn = document.getElementById('compressBtn');
-  if (btn) btn.disabled = EditorState.files.length === 0;
-  
-  // Display a prompt in the canvas center if active
-  if (EditorState.activeTool === 'compress' && EditorState.files.length > 0) {
-      document.getElementById('editorCenterCanvas').innerHTML = `
-        <div style="display:flex; height:100%; align-items:center; justify-content:center; flex-direction:column; color:var(--text-muted);">
-           <div style="font-size:48px; margin-bottom:16px;">📦</div>
-           <h3>Ready to Compress</h3>
-           <p>${EditorState.files[0].name} (${formatSize(EditorState.files[0].size)})</p>
-        </div>
-      `;
+  if (EditorState.activeTool !== 'compress') return;
+  const button = document.getElementById('compressBtn');
+  const canvas = document.getElementById('editorCenterCanvas');
+  const doc = EditorState.workingDocument;
+  button.disabled = !doc;
+  canvas.innerHTML = `
+    <div class="workspace-placeholder">
+      <div class="workspace-placeholder-kicker">Working document</div>
+      <h3>${doc ? 'Ready to compress the active PDF' : 'Import a PDF to compress it'}</h3>
+      <p>${doc ? `${doc.name} - ${formatSize(doc.size)}` : 'Compression writes a smaller PDF back into the workspace and enables the shared download action.'}</p>
+    </div>
+  `;
+  canvas.style.display = 'block';
+}
+
+async function doCompress() {
+  const doc = EditorState.workingDocument;
+  if (EditorState.activeTool !== 'compress' || !doc) return;
+
+  const button = document.getElementById('compressBtn');
+  button.textContent = 'Compressing...';
+  setProgress('globalProgress', 20);
+
+  try {
+    const pdfDoc = await PDFDocument.load(doc.bytes, { ignoreEncryption: true });
+    const compressedBytes = await pdfDoc.save({ useObjectStreams: true, addDefaultPage: false });
+    const pctSaved = Math.max(0, ((1 - compressedBytes.length / doc.size) * 100)).toFixed(1);
+    await commitPdfResult(compressedBytes, {
+      filename: `compressed_${doc.name}`,
+      label: `${formatSize(doc.size)} to ${formatSize(compressedBytes.length)} (${pctSaved}% smaller)`,
+      pageCount: doc.pageCount,
+      source: 'compress',
+    });
+  } catch (error) {
+    showError(`Error compressing: ${error.message}`);
+  } finally {
+    hideProgress('globalProgress');
+    button.textContent = 'Compress PDF';
   }
 }
 
 export function init() {
   document.getElementById('compressBtn').addEventListener('click', doCompress);
-  
-  EditorEvents.on('filesChanged', () => {
-    if (EditorState.activeTool === 'compress') updateUI();
-  });
-  
   EditorEvents.on('toolChanged', (tool) => {
     if (tool === 'compress') updateUI();
   });
+  EditorEvents.on('workingDocumentChanged', updateUI);
 }
