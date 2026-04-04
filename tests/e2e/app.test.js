@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import puppeteer from 'puppeteer';
 
-const BASE_URL = 'http://localhost:5173/pdf-kit/';
+const base_url = 'http://localhost:5173/pdf-kit/';
 
-const ALL_TOOLS = [
+const all_tools = [
   'merge',
   'split',
   'compress',
@@ -31,7 +31,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await page.goto(BASE_URL, { waitUntil: 'load' });
+  await page.goto(base_url, { waitUntil: 'load' });
 });
 
 describe('App shell', () => {
@@ -62,7 +62,7 @@ describe('App shell', () => {
 });
 
 describe('Tool triggers', () => {
-  ALL_TOOLS.forEach((tool) => {
+  all_tools.forEach((tool) => {
     it(`renders trigger(s) for ${tool}`, async () => {
       const triggerCount = await page.$$eval(`[data-tool="${tool}"]`, (elements) => elements.length);
       expect(triggerCount).toBeGreaterThan(0);
